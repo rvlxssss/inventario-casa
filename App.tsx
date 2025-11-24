@@ -19,8 +19,8 @@ const INITIAL_CATEGORIES: Category[] = [
 
 // Mock initial data
 const INITIAL_PRODUCTS: Product[] = [
-  { id: '1', name: 'Yogurt Griego', quantity: 3, unit: 'unidades', expiryDate: '2023-10-25', categoryId: 'cat_food', status: 'expired' },
-  { id: '2', name: 'Leche Entera', quantity: 2, unit: 'unidades', expiryDate: '2023-10-28', categoryId: 'cat_food', status: 'warning' },
+  { id: '1', name: 'Yogurt Griego', quantity: 3, unit: 'unidades', expiryDate: '2023-10-25', categoryId: 'cat_food', status: 'expired', cost: 4.50, addedDate: new Date().toISOString() },
+  { id: '2', name: 'Leche Entera', quantity: 2, unit: 'L', expiryDate: '2023-10-28', categoryId: 'cat_food', status: 'warning', cost: 2.40, addedDate: new Date().toISOString() },
 ];
 
 const INITIAL_MEMBERS: User[] = [];

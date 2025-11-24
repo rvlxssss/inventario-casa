@@ -14,6 +14,8 @@ export interface Product {
     categoryId: string; // Link to Category.id
     status: 'ok' | 'warning' | 'expired';
     notes?: string;
+    cost?: number; // Total cost of this entry
+    addedDate?: string; // ISO date string when added
 }
 
 export interface User {

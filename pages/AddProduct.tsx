@@ -118,8 +118,40 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd }) => 
     const [unit, setUnit] = useState('unidades');
     const [expiryDate, setExpiryDate] = useState('');
     const [categoryId, setCategoryId] = useState(initialCategoryId);
+    
+    // Price Calculator State
+    const [useUnitPrice, setUseUnitPrice] = useState(false);
+    const [pricePerPackage, setPricePerPackage] = useState(''); // Price of one item (e.g. 1 can)
+    const [packageSize, setPackageSize] = useState('1'); // Content of one item (e.g. 330ml or 1 unit)
+    const [totalCost, setTotalCost] = useState('');
+
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [isLoadingProduct, setIsLoadingProduct] = useState(false);
+
+    // Autocomplete State
+    const [suggestions, setSuggestions] = useState<any[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const searchTimeout = useRef<any>(null);
+
+    // --- Price Calculation Logic ---
+    useEffect(() => {
+        if (useUnitPrice) {
+            const qty = parseFloat(quantity) || 0;
+            const size = parseFloat(packageSize) || 1;
+            const price = parseFloat(pricePerPackage) || 0;
+            
+            // Formula: (Total Quantity / Size of 1 pack) * Price of 1 pack
+            // Example: 2 Liters Total / 1 Liter Pack * $2.00 = $4.00
+            // Example: 250g Total / 50g Pack * $10.00 = 5 Packs * $10.00 = $50.00
+            
+            if (size > 0) {
+                const numberOfPacks = qty / size;
+                const calculated = numberOfPacks * price;
+                setTotalCost(calculated > 0 ? calculated.toFixed(2) : '');
+            }
+        }
+    }, [quantity, packageSize, pricePerPackage, useUnitPrice]);
+
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -132,7 +164,9 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd }) => 
             unit,
             expiryDate,
             categoryId,
-            status: calculateStatus(expiryDate)
+            status: calculateStatus(expiryDate),
+            cost: parseFloat(totalCost) || 0,
+            addedDate: new Date().toISOString()
         };
 
         onAdd(newProduct);
@@ -165,8 +199,17 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd }) => 
                 const productName = data.product.product_name_es || data.product.product_name || '';
                 if (productName) setName(productName);
                 
-                // Try to guess category (very basic)
-                // const categoriesTags = data.product.categories_tags; // e.g. ["en:beverages"]
+                // Try to extract quantity/unit hint
+                // e.g., "1 L", "500 g"
+                if (data.product.quantity) {
+                     // Very basic parsing, could be improved
+                     const qStr = data.product.quantity.toLowerCase();
+                     if(qStr.includes('l') && !qStr.includes('ml')) setUnit('L');
+                     if(qStr.includes('ml')) setUnit('ml');
+                     if(qStr.includes('kg')) setUnit('kg');
+                     if(qStr.includes('g') && !qStr.includes('kg')) setUnit('g');
+                }
+                
             } else {
                 alert("Producto no encontrado en la base de datos pública.");
             }
@@ -176,6 +219,47 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd }) => 
         } finally {
             setIsLoadingProduct(false);
         }
+    };
+
+    // Autocomplete Logic
+    const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setName(val);
+
+        if (searchTimeout.current) {
+            clearTimeout(searchTimeout.current);
+        }
+
+        if (val.length < 3) {
+            setSuggestions([]);
+            setShowSuggestions(false);
+            return;
+        }
+
+        searchTimeout.current = setTimeout(async () => {
+            try {
+                // Fetch Suggestions from OpenFoodFacts Search API
+                const response = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(val)}&search_simple=1&action=process&json=1&page_size=5`);
+                const data = await response.json();
+                
+                if (data.products && data.products.length > 0) {
+                    setSuggestions(data.products);
+                    setShowSuggestions(true);
+                } else {
+                    setSuggestions([]);
+                    setShowSuggestions(false);
+                }
+            } catch (err) {
+                console.error("Error fetching suggestions", err);
+            }
+        }, 500); // 500ms Debounce
+    };
+
+    const handleSelectSuggestion = (product: any) => {
+        const bestName = product.product_name_es || product.product_name || name;
+        setName(bestName);
+        setShowSuggestions(false);
+        setSuggestions([]);
     };
 
     return (
@@ -192,16 +276,20 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd }) => 
             <main className="flex-1 px-4 pb-24">
                 <form onSubmit={handleSubmit} className="space-y-6">
                     
-                    {/* Name Input with Scanner */}
-                    <div className="space-y-1">
+                    {/* Name Input with Scanner & Autocomplete */}
+                    <div className="space-y-1 relative z-20">
                         <label className="text-sm font-medium text-slate-500 dark:text-slate-400">Nombre del Producto</label>
                         <div className="flex gap-2">
                             <input 
                                 value={name}
-                                onChange={e => setName(e.target.value)}
+                                onChange={handleNameChange}
+                                onFocus={() => name.length >= 3 && suggestions.length > 0 && setShowSuggestions(true)}
+                                // Delayed blur to allow click on suggestion
+                                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                                 className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark p-4 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-slate-500/50"
                                 placeholder="Ej: Leche Deslactosada"
                                 required
+                                autoComplete="off"
                             />
                             <button 
                                 type="button"
@@ -215,38 +303,135 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd }) => 
                                 )}
                             </button>
                         </div>
+                        
+                        {/* Autocomplete Dropdown */}
+                        {showSuggestions && suggestions.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden z-30 animate-fade-in max-h-60 overflow-y-auto">
+                                <ul>
+                                    {suggestions.map((item, idx) => (
+                                        <li 
+                                            key={item.code || idx}
+                                            onClick={() => handleSelectSuggestion(item)}
+                                            className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex items-center gap-3 border-b border-slate-100 dark:border-white/5 last:border-0 transition-colors"
+                                        >
+                                            {item.image_small_url ? (
+                                                <img src={item.image_small_url} alt="" className="h-8 w-8 object-cover rounded bg-white" />
+                                            ) : (
+                                                <div className="h-8 w-8 bg-slate-100 dark:bg-white/10 rounded flex items-center justify-center">
+                                                     <span className="material-symbols-outlined text-sm text-slate-400">restaurant</span>
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-bold text-slate-800 dark:text-white truncate">
+                                                    {item.product_name_es || item.product_name}
+                                                </p>
+                                                <p className="text-xs text-slate-400 truncate">
+                                                    {item.brands || 'Sin marca'}
+                                                </p>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Quantity & Unit Row */}
-                    <div className="flex gap-4">
-                        <div className="flex-1 space-y-1">
-                            <label className="text-sm font-medium text-slate-500 dark:text-slate-400">Cantidad</label>
-                            <input 
+                    {/* Quantity & Unit */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                             <label className="text-sm font-medium text-slate-500 dark:text-slate-400">Cantidad Total</label>
+                             <input 
                                 type="number"
                                 value={quantity}
-                                onChange={e => setQuantity(e.target.value)}
+                                onChange={(e) => setQuantity(e.target.value)}
                                 className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark p-4 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-slate-500/50"
                                 placeholder="1"
-                                min="0"
+                                min="0.1"
                                 step="any"
                                 required
                             />
                         </div>
-                        <div className="w-1/3 space-y-1">
-                            <label className="text-sm font-medium text-slate-500 dark:text-slate-400">Unidad</label>
-                            <div className="relative">
+                        <div className="space-y-1">
+                             <label className="text-sm font-medium text-slate-500 dark:text-slate-400">Unidad</label>
+                             <div className="relative">
                                 <select 
                                     value={unit}
-                                    onChange={e => setUnit(e.target.value)}
+                                    onChange={(e) => setUnit(e.target.value)}
                                     className="w-full appearance-none rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark p-4 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-slate-500/50"
                                 >
-                                    <option value="unidades">Uds</option>
-                                    <option value="kg">kg</option>
-                                    <option value="g">g</option>
-                                    <option value="L">L</option>
-                                    <option value="ml">ml</option>
+                                    <option value="unidades">Unidades</option>
+                                    <option value="kg">Kilogramos (kg)</option>
+                                    <option value="g">Gramos (g)</option>
+                                    <option value="L">Litros (L)</option>
+                                    <option value="ml">Mililitros (ml)</option>
+                                    <option value="oz">Onzas (oz)</option>
+                                    <option value="lb">Libras (lb)</option>
                                 </select>
-                                <span className="absolute right-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 pointer-events-none">expand_more</span>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
+                                     <span className="material-symbols-outlined">expand_more</span>
+                                </div>
+                             </div>
+                        </div>
+                    </div>
+                    
+                    {/* --- Price Calculator Section --- */}
+                    <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 space-y-3 border border-slate-100 dark:border-white/5">
+                        <div className="flex items-center justify-between">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <div className={`w-5 h-5 rounded border flex items-center justify-center ${useUnitPrice ? 'bg-slate-900 border-slate-900 dark:bg-white dark:border-white' : 'border-slate-400'}`}>
+                                    {useUnitPrice && <span className="material-symbols-outlined text-xs text-white dark:text-slate-900">check</span>}
+                                </div>
+                                <input type="checkbox" className="hidden" checked={useUnitPrice} onChange={() => setUseUnitPrice(!useUnitPrice)} />
+                                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Calcular por unidad/paquete</span>
+                            </label>
+                        </div>
+                        
+                        {useUnitPrice ? (
+                            <div className="grid grid-cols-2 gap-4 animate-fade-in">
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Precio del Paquete</label>
+                                    <div className="relative mt-1">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+                                        <input 
+                                            type="number"
+                                            value={pricePerPackage}
+                                            onChange={(e) => setPricePerPackage(e.target.value)}
+                                            className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark p-2 pl-6 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-slate-500/50"
+                                            placeholder="10.00"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Tamaño del Paquete</label>
+                                    <div className="relative mt-1">
+                                        <input 
+                                            type="number"
+                                            value={packageSize}
+                                            onChange={(e) => setPackageSize(e.target.value)}
+                                            className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark p-2 pr-8 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-slate-500/50"
+                                            placeholder="1"
+                                        />
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">{unit}</span>
+                                    </div>
+                                </div>
+                                <div className="col-span-2 text-xs text-slate-500">
+                                    <p>Estás añadiendo <b>{parseFloat(quantity) / (parseFloat(packageSize)||1)}</b> paquetes.</p>
+                                </div>
+                            </div>
+                        ) : null}
+
+                        <div>
+                            <label className="text-sm font-medium text-slate-500 dark:text-slate-400">Costo Total de la Compra</label>
+                            <div className="relative mt-1">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">$</span>
+                                <input 
+                                    type="number"
+                                    value={totalCost}
+                                    onChange={(e) => setTotalCost(e.target.value)}
+                                    className={`w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark p-4 pl-8 text-xl font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-slate-500/50 ${useUnitPrice ? 'opacity-80' : ''}`}
+                                    placeholder="0.00"
+                                    readOnly={useUnitPrice}
+                                />
                             </div>
                         </div>
                     </div>
@@ -257,41 +442,46 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd }) => 
                         <input 
                             type="date"
                             value={expiryDate}
-                            onChange={e => setExpiryDate(e.target.value)}
+                            onChange={(e) => setExpiryDate(e.target.value)}
                             className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark p-4 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-slate-500/50 min-h-[58px]"
                         />
                     </div>
 
-                    {/* Category */}
-                    <div className="space-y-1">
+                    {/* Category Selection */}
+                    <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-500 dark:text-slate-400">Categoría</label>
-                        <div className="relative">
-                            <select 
-                                value={categoryId}
-                                onChange={e => setCategoryId(e.target.value)}
-                                className="w-full appearance-none rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark p-4 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-slate-500/50"
-                            >
-                                <option value="" disabled>Selecciona una categoría</option>
-                                {categories.map(cat => (
-                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                ))}
-                            </select>
-                            <span className="absolute right-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 pointer-events-none">expand_more</span>
+                        <div className="grid grid-cols-2 gap-2">
+                            {categories.map(cat => (
+                                <button
+                                    key={cat.id}
+                                    type="button"
+                                    onClick={() => setCategoryId(cat.id)}
+                                    className={`flex items-center gap-2 p-3 rounded-xl border transition-all ${categoryId === cat.id ? 'bg-slate-900 dark:bg-white border-slate-900 dark:border-white text-white dark:text-slate-900' : 'bg-white dark:bg-surface-dark border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400 dark:hover:border-slate-500'}`}
+                                >
+                                    <span className="material-symbols-outlined text-lg">{cat.icon}</span>
+                                    <span className="text-sm font-bold truncate">{cat.name}</span>
+                                </button>
+                            ))}
                         </div>
+                        {categories.length === 0 && (
+                            <p className="text-xs text-red-500">Crea una categoría antes de añadir productos.</p>
+                        )}
                     </div>
 
-                    {/* Submit Button */}
-                    <button 
-                        type="submit"
-                        className="w-full h-14 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-lg hover:opacity-90 active:scale-[0.98] transition-all mt-8 shadow-lg shadow-slate-900/10 dark:shadow-none"
-                    >
-                        Guardar Producto
-                    </button>
+                    <div className="pt-4">
+                        <button 
+                            type="submit"
+                            disabled={!name || !categoryId}
+                            className="w-full h-14 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-lg font-bold shadow-lg hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Guardar Producto
+                        </button>
+                    </div>
                 </form>
             </main>
 
             <BarcodeScannerModal 
-                isOpen={isScannerOpen}
+                isOpen={isScannerOpen} 
                 onClose={() => setIsScannerOpen(false)}
                 onDetected={handleBarcodeDetected}
             />

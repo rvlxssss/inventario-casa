@@ -326,6 +326,21 @@ export const Inventory: React.FC<InventoryProps> = ({
     p.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // --- Financial Calculations ---
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+  const inventoryValue = activeProducts.reduce((acc, p) => acc + (p.cost || 0), 0);
+  
+  const monthlySpend = products
+    .filter(p => {
+        if(!p.addedDate) return false;
+        const d = new Date(p.addedDate);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    })
+    .reduce((acc, p) => acc + (p.cost || 0), 0);
+
   const handleSaveCategory = (name: string, icon: string) => {
     if (editingCategory) {
         onUpdateCategory({ ...editingCategory, name, icon });
@@ -411,6 +426,26 @@ export const Inventory: React.FC<InventoryProps> = ({
         {/* Content */}
         <main className="flex-1 px-4 pt-4 pb-32 space-y-6">
             
+            {/* --- Financial Summary --- */}
+            {!searchTerm && (
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white dark:bg-surface-dark p-4 rounded-xl shadow-sm border border-slate-100 dark:border-white/5">
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="material-symbols-outlined text-green-500 text-lg">monetization_on</span>
+                            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Valor Total</span>
+                        </div>
+                        <p className="text-xl font-bold text-slate-900 dark:text-white">${inventoryValue.toFixed(2)}</p>
+                    </div>
+                    <div className="bg-white dark:bg-surface-dark p-4 rounded-xl shadow-sm border border-slate-100 dark:border-white/5">
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="material-symbols-outlined text-blue-500 text-lg">shopping_bag</span>
+                            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Gastado {monthNames[currentMonth]}</span>
+                        </div>
+                        <p className="text-xl font-bold text-slate-900 dark:text-white">${monthlySpend.toFixed(2)}</p>
+                    </div>
+                </div>
+            )}
+
             {/* Dynamic Categories */}
             {categories.map(cat => {
                 const catProducts = filteredProducts.filter(p => p.categoryId === cat.id);
