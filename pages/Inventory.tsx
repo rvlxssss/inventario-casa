@@ -63,10 +63,15 @@ const ConsumeModal: React.FC<ConsumeModalProps> = ({ isOpen, onClose, onConfirm,
 
     const handleSubmit = () => {
         const val = parseFloat(amount);
-        if (val > 0) {
+        // Explicitly use maxQuantity in validation logic
+        if (val > 0 && val <= maxQuantity) {
             onConfirm(val);
             setAmount('');
             onClose();
+        } else if (val > maxQuantity) {
+            alert(`No puedes consumir más de lo que tienes (${maxQuantity} ${unit})`);
+        } else {
+            alert("Por favor ingresa una cantidad válida");
         }
     };
 
@@ -74,7 +79,12 @@ const ConsumeModal: React.FC<ConsumeModalProps> = ({ isOpen, onClose, onConfirm,
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
             <div className="bg-white dark:bg-[#1e1e1e] w-full max-w-sm rounded-2xl p-6 shadow-2xl">
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Consumir Producto</h3>
-                <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">¿Cuánto {productName} has consumido?</p>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
+                    ¿Cuánto {productName} has consumido?
+                    <br/>
+                    {/* Explicitly use maxQuantity in display */}
+                    <span className="text-xs text-slate-400">Disponible: {maxQuantity} {unit}</span>
+                </p>
                 
                 <div className="relative mb-6">
                     <input 
@@ -83,6 +93,8 @@ const ConsumeModal: React.FC<ConsumeModalProps> = ({ isOpen, onClose, onConfirm,
                         onChange={(e) => setAmount(e.target.value)}
                         className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-black/20 p-4 text-2xl font-bold text-center text-slate-900 dark:text-white focus:ring-2 focus:ring-slate-500/50 outline-none"
                         placeholder="0"
+                        // Explicitly use maxQuantity in input attribute
+                        max={maxQuantity}
                         autoFocus
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium">{unit}</span>
@@ -131,12 +143,6 @@ const ProductItem: React.FC<{
 
   const handleIncrement = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // For incrementing measurable units, we might just add a generic amount or 1.
-    // For simplicity, let's just add 1 (user can edit product for bulk add, or we could add 'Add' modal too)
-    // But typically user consumes variable amounts, buys in fixed packs.
-    // Let's stick to +1 for now or if it's weight, maybe +100g?
-    // User requested "manually select how much is reduced", didn't specify adding.
-    // Let's add 1 for units, and a small step for others to be helpful.
     let step = 1;
     if (product.unit === 'g' || product.unit === 'ml') step = 50; 
     if (product.unit === 'kg' || product.unit === 'L') step = 0.5;
