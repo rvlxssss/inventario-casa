@@ -126,8 +126,9 @@ const ProductItem: React.FC<{
     onUpdate: (p: Product) => void;
     onDelete: (id: string) => void;
     onConsumeRequest: (p: Product) => void;
+    onEdit: (p: Product) => void;
     isReadOnly: boolean;
-}> = ({ product, onUpdate, onDelete, onConsumeRequest, isReadOnly }) => {
+}> = ({ product, onUpdate, onDelete, onConsumeRequest, onEdit, isReadOnly }) => {
   
   const handleDecrement = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -161,6 +162,12 @@ const ProductItem: React.FC<{
       }
   };
 
+  const handleEdit = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (isReadOnly) return;
+      onEdit(product);
+  }
+
   return (
     <div className="group/item relative flex items-center gap-3 bg-white dark:bg-surface-dark px-3 min-h-[80px] py-3 rounded-xl shadow-sm border border-transparent dark:border-white/5 transition-colors overflow-hidden">
       
@@ -169,22 +176,30 @@ const ProductItem: React.FC<{
         <span className="material-symbols-outlined">{getStatusIcon(product.status)}</span>
       </div>
       
-      {/* Text Info - Added pr-10 to prevent overlap with absolute delete button */}
-      <div className="flex flex-col justify-center flex-1 min-w-0 mr-1 pr-10 sm:pr-0">
+      {/* Text Info - Added pr-16 to prevent overlap with absolute buttons */}
+      <div className="flex flex-col justify-center flex-1 min-w-0 mr-1 pr-16 sm:pr-0">
         <p className="text-slate-800 dark:text-white text-base font-bold leading-tight truncate">{product.name}</p>
         <p className={`text-xs mt-1 truncate ${getStatusTextClass(product.status)}`}>
           {getStatusMessage(product)}
         </p>
       </div>
 
-      {/* Delete Button (Absolute for small footprint) - Increased touch target */}
+      {/* Edit & Delete Buttons (Absolute) */}
       {!isReadOnly && (
-        <button 
-            onClick={handleDelete}
-            className="absolute right-0 top-0 p-3 text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 z-10"
-        >
-            <span className="material-symbols-outlined text-xl">delete</span>
-        </button>
+        <div className="absolute right-0 top-0 flex items-center z-10">
+             <button 
+                onClick={handleEdit}
+                className="p-3 text-slate-300 hover:text-blue-500 dark:text-slate-600 dark:hover:text-blue-400"
+            >
+                <span className="material-symbols-outlined text-xl">edit</span>
+            </button>
+            <button 
+                onClick={handleDelete}
+                className="p-3 text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400"
+            >
+                <span className="material-symbols-outlined text-xl">delete</span>
+            </button>
+        </div>
       )}
 
       {/* Controls */}
@@ -376,6 +391,10 @@ export const Inventory: React.FC<InventoryProps> = ({
           onUpdateProduct({ ...consumeProduct, quantity: newQuantity });
       }
   };
+  
+  const handleEditProduct = (p: Product) => {
+      navigate('/add', { state: { product: p } });
+  }
 
   const handleAddProductToCategory = (catId: string) => {
       if (isViewer) {
@@ -491,6 +510,7 @@ export const Inventory: React.FC<InventoryProps> = ({
                                         onUpdate={onUpdateProduct} 
                                         onDelete={onDeleteProduct}
                                         onConsumeRequest={handleConsumeRequest}
+                                        onEdit={handleEditProduct}
                                         isReadOnly={isViewer}
                                     />
                                 ))}

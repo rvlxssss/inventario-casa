@@ -555,6 +555,7 @@ const App: React.FC = () => {
                 <AddProduct 
                     categories={categories}
                     onAdd={addProduct} 
+                    onUpdate={updateProduct}
                 /> : <Navigate to="/" />} 
             />
           <Route 

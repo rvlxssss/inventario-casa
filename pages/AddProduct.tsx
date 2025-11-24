@@ -6,6 +6,7 @@ import { BottomNav } from '../components/BottomNav';
 interface AddProductProps {
     categories: Category[];
     onAdd: (product: Product) => void;
+    onUpdate: (product: Product) => void;
 }
 
 declare global {
@@ -106,11 +107,12 @@ const BarcodeScannerModal: React.FC<{
     );
 };
 
-export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd }) => {
+export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpdate }) => {
     const navigate = useNavigate();
     const location = useLocation();
     
-    // Default to first category or passed categoryId
+    // Check if we are editing an existing product
+    const editingProduct = (location.state as any)?.product as Product | undefined;
     const initialCategoryId = (location.state as any)?.categoryId || (categories.length > 0 ? categories[0].id : '');
 
     const [name, setName] = useState('');
@@ -121,8 +123,8 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd }) => 
     
     // Price Calculator State
     const [useUnitPrice, setUseUnitPrice] = useState(false);
-    const [pricePerPackage, setPricePerPackage] = useState(''); // Price of one item (e.g. 1 can)
-    const [packageSize, setPackageSize] = useState('1'); // Content of one item (e.g. 330ml or 1 unit)
+    const [pricePerPackage, setPricePerPackage] = useState(''); 
+    const [packageSize, setPackageSize] = useState('1'); 
     const [totalCost, setTotalCost] = useState('');
 
     const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -133,16 +135,26 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd }) => 
     const [showSuggestions, setShowSuggestions] = useState(false);
     const searchTimeout = useRef<any>(null);
 
+    // Load data if editing
+    useEffect(() => {
+        if (editingProduct) {
+            setName(editingProduct.name);
+            setQuantity(editingProduct.quantity.toString());
+            setUnit(editingProduct.unit);
+            setExpiryDate(editingProduct.expiryDate || '');
+            setCategoryId(editingProduct.categoryId);
+            if (editingProduct.cost) {
+                setTotalCost(editingProduct.cost.toString());
+            }
+        }
+    }, [editingProduct]);
+
     // --- Price Calculation Logic ---
     useEffect(() => {
         if (useUnitPrice) {
             const qty = parseFloat(quantity) || 0;
             const size = parseFloat(packageSize) || 1;
             const price = parseFloat(pricePerPackage) || 0;
-            
-            // Formula: (Total Quantity / Size of 1 pack) * Price of 1 pack
-            // Example: 2 Liters Total / 1 Liter Pack * $2.00 = $4.00
-            // Example: 250g Total / 50g Pack * $10.00 = 5 Packs * $10.00 = $50.00
             
             if (size > 0) {
                 const numberOfPacks = qty / size;
@@ -157,8 +169,8 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd }) => 
         e.preventDefault();
         if (!name || !categoryId) return;
 
-        const newProduct: Product = {
-            id: Date.now().toString(),
+        const productData: Product = {
+            id: editingProduct ? editingProduct.id : Date.now().toString(),
             name,
             quantity: parseFloat(quantity),
             unit,
@@ -166,10 +178,14 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd }) => 
             categoryId,
             status: calculateStatus(expiryDate),
             cost: parseFloat(totalCost) || 0,
-            addedDate: new Date().toISOString()
+            addedDate: editingProduct ? editingProduct.addedDate : new Date().toISOString()
         };
 
-        onAdd(newProduct);
+        if (editingProduct) {
+            onUpdate(productData);
+        } else {
+            onAdd(productData);
+        }
         navigate(-1);
     };
 
@@ -200,9 +216,7 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd }) => 
                 if (productName) setName(productName);
                 
                 // Try to extract quantity/unit hint
-                // e.g., "1 L", "500 g"
                 if (data.product.quantity) {
-                     // Very basic parsing, could be improved
                      const qStr = data.product.quantity.toLowerCase();
                      if(qStr.includes('l') && !qStr.includes('ml')) setUnit('L');
                      if(qStr.includes('ml')) setUnit('ml');
@@ -269,7 +283,9 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd }) => 
                 <button onClick={() => navigate(-1)} className="text-slate-800 dark:text-white flex size-12 shrink-0 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10">
                     <span className="material-symbols-outlined text-2xl">arrow_back</span>
                 </button>
-                <h1 className="text-slate-800 dark:text-white text-lg font-bold leading-tight">Nuevo Producto</h1>
+                <h1 className="text-slate-800 dark:text-white text-lg font-bold leading-tight">
+                    {editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
+                </h1>
                 <div className="size-12"></div>
             </div>
 
@@ -421,7 +437,7 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd }) => 
                         ) : null}
 
                         <div>
-                            <label className="text-sm font-medium text-slate-500 dark:text-slate-400">Costo Total de la Compra</label>
+                            <label className="text-sm font-medium text-slate-500 dark:text-slate-400">Costo Total</label>
                             <div className="relative mt-1">
                                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">$</span>
                                 <input 
@@ -474,7 +490,7 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd }) => 
                             disabled={!name || !categoryId}
                             className="w-full h-14 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-lg font-bold shadow-lg hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            Guardar Producto
+                            {editingProduct ? 'Actualizar Producto' : 'Guardar Producto'}
                         </button>
                     </div>
                 </form>
