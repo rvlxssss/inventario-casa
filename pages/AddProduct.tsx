@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Product, Category } from '../types';
 
 interface AddProductProps {
@@ -10,20 +10,25 @@ interface AddProductProps {
 
 export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [name, setName] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [unit, setUnit] = useState('unidades');
-  // Default to first category if available
-  const [categoryId, setCategoryId] = useState<string>(categories[0]?.id || '');
+  
+  // Initialize Category ID
+  const [categoryId, setCategoryId] = useState<string>('');
+  
   const [expiryDate, setExpiryDate] = useState('');
   const [notes, setNotes] = useState('');
 
-  // Update categoryId if categories load later or empty initially
-  React.useEffect(() => {
-      if (!categoryId && categories.length > 0) {
+  // Check for pre-selected category from navigation state
+  useEffect(() => {
+      if (location.state && (location.state as any).categoryId) {
+          setCategoryId((location.state as any).categoryId);
+      } else if (categories.length > 0 && !categoryId) {
           setCategoryId(categories[0].id);
       }
-  }, [categories, categoryId]);
+  }, [categories, location.state]);
 
   const handleSubmit = () => {
     if (!name) {

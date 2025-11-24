@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './pages/Login';
 import { Inventory } from './pages/Inventory';
@@ -7,7 +7,7 @@ import { AddProduct } from './pages/AddProduct';
 import { Profile } from './pages/Profile';
 import { ManageAccess } from './pages/ManageAccess';
 import { ShoppingList } from './pages/ShoppingList';
-import { Product, Category } from './types';
+import { Product, Category, User } from './types';
 
 // Initial Categories
 const INITIAL_CATEGORIES: Category[] = [
@@ -22,16 +22,34 @@ const INITIAL_PRODUCTS: Product[] = [
   { id: '1', name: 'Yogurt Griego', quantity: 3, unit: 'unidades', expiryDate: '2023-10-25', categoryId: 'cat_food', status: 'expired' },
   { id: '2', name: 'Leche Entera', quantity: 2, unit: 'unidades', expiryDate: '2023-10-28', categoryId: 'cat_food', status: 'warning' },
   { id: '3', name: 'Huevos', quantity: 12, unit: 'unidades', expiryDate: '2023-11-10', categoryId: 'cat_food', status: 'ok' },
-  { id: '4', name: 'Arroz', quantity: 1, unit: 'kg', expiryDate: '2024-06-01', categoryId: 'cat_food', status: 'ok' },
+  { id: '4', name: 'Arroz', quantity: 1000, unit: 'g', expiryDate: '2024-06-01', categoryId: 'cat_food', status: 'ok' },
   { id: '5', name: 'Detergente', quantity: 1, unit: 'L', expiryDate: '', categoryId: 'cat_cleaning', status: 'ok' },
   { id: '6', name: 'Limpiador Multiuso', quantity: 750, unit: 'ml', expiryDate: '', categoryId: 'cat_cleaning', status: 'ok' },
-  { id: '7', name: 'Pan de Molde', quantity: 0, unit: 'unidades', expiryDate: '', categoryId: 'cat_food', status: 'ok' },
 ];
 
+const INITIAL_MEMBERS: User[] = [
+    { id: '1', name: 'Ana García', email: 'ana.garcia@email.com', avatarUrl: '', role: 'owner', isCurrentUser: true },
+    { id: '2', name: 'Ana Gómez', email: 'ana.gomez@email.com', avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDLNA3YZOo9mbFhzDJkLsgSzsYpVuPOzvFpYnEEoEwE69N76rYiMcFXllwRHIK7JANcAFumOCEIXgQPdDFjsOkAttniX5er7ZVINowYSqy01Vy_g8cLqfMz-tltajfkAkVN48jripHGh_GxFrxufiXE2xCCYl8G58zVz1eMFc6D_dwNgHv502bhG4DS3T5_SXhRxsBoGvKngaF5NwekYADaH2maYp6Lc80o2-zF55QKeK3O_n_mce9ulVetIc6hyn9DyYvSE7lFoEs', role: 'editor' },
+];
+
+// Helper to load from local storage
+const loadState = <T,>(key: string, fallback: T): T => {
+  const saved = localStorage.getItem(key);
+  return saved ? JSON.parse(saved) : fallback;
+};
+
 const App: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
-  const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // State with persistence
+  const [products, setProducts] = useState<Product[]>(() => loadState('products', INITIAL_PRODUCTS));
+  const [categories, setCategories] = useState<Category[]>(() => loadState('categories', INITIAL_CATEGORIES));
+  const [members, setMembers] = useState<User[]>(() => loadState('members', INITIAL_MEMBERS));
+  const [isAuthenticated, setIsAuthenticated] = useState(() => loadState('isAuthenticated', false));
+
+  // Persistence Effects
+  useEffect(() => { localStorage.setItem('products', JSON.stringify(products)); }, [products]);
+  useEffect(() => { localStorage.setItem('categories', JSON.stringify(categories)); }, [categories]);
+  useEffect(() => { localStorage.setItem('members', JSON.stringify(members)); }, [members]);
+  useEffect(() => { localStorage.setItem('isAuthenticated', JSON.stringify(isAuthenticated)); }, [isAuthenticated]);
 
   const handleLogin = () => {
     setIsAuthenticated(true);
@@ -41,12 +59,17 @@ const App: React.FC = () => {
     setIsAuthenticated(false);
   };
 
+  // Product Handlers
   const addProduct = (newProduct: Product) => {
     setProducts(prev => [newProduct, ...prev]);
   };
 
   const updateProduct = (updatedProduct: Product) => {
     setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+  };
+
+  const deleteProduct = (productId: string) => {
+      setProducts(prev => prev.filter(p => p.id !== productId));
   };
 
   // Category Handlers
@@ -59,13 +82,15 @@ const App: React.FC = () => {
   };
 
   const deleteCategory = (categoryId: string) => {
-    // Cascade delete: remove products in this category (or we could move them to 'uncategorized')
-    // For this example, we'll keep products but they might disappear from view if view depends on category list.
-    // Better approach: Delete products associated with it.
     if (window.confirm('¿Seguro que quieres eliminar esta categoría? Se borrarán los productos asociados.')) {
         setProducts(prev => prev.filter(p => p.categoryId !== categoryId));
         setCategories(prev => prev.filter(c => c.id !== categoryId));
     }
+  };
+
+  // Member Handlers
+  const updateMembers = (newMembers: User[]) => {
+      setMembers(newMembers);
   };
 
   return (
@@ -80,6 +105,7 @@ const App: React.FC = () => {
                     products={products} 
                     categories={categories}
                     onUpdateProduct={updateProduct} 
+                    onDeleteProduct={deleteProduct}
                     onAddCategory={addCategory}
                     onUpdateCategory={updateCategory}
                     onDeleteCategory={deleteCategory}
@@ -103,7 +129,14 @@ const App: React.FC = () => {
                 /> : <Navigate to="/" />} 
             />
           <Route path="/profile" element={isAuthenticated ? <Profile onLogout={handleLogout} /> : <Navigate to="/" />} />
-          <Route path="/access" element={isAuthenticated ? <ManageAccess /> : <Navigate to="/" />} />
+          <Route 
+            path="/access" 
+            element={isAuthenticated ? 
+                <ManageAccess 
+                    members={members} 
+                    onUpdateMembers={updateMembers} 
+                /> : <Navigate to="/" />} 
+            />
         </Routes>
       </div>
     </Router>

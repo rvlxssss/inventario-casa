@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Product, Category } from '../types';
 import { BottomNav } from '../components/BottomNav';
 
@@ -7,12 +8,13 @@ interface InventoryProps {
   products: Product[];
   categories: Category[];
   onUpdateProduct: (product: Product) => void;
+  onDeleteProduct: (productId: string) => void;
   onAddCategory: (category: Category) => void;
   onUpdateCategory: (category: Category) => void;
   onDeleteCategory: (id: string) => void;
 }
 
-// Helper Components & Functions
+// --- Helpers ---
 const getStatusIcon = (status: Product['status']) => {
   switch (status) {
     case 'expired': return 'error';
@@ -44,33 +46,134 @@ const getStatusMessage = (p: Product) => {
     return 'En stock';
 }
 
-const ProductItem: React.FC<{ product: Product; onUpdate: (p: Product) => void }> = ({ product, onUpdate }) => {
+// --- Consume Modal ---
+interface ConsumeModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: (amount: number) => void;
+    productName: string;
+    unit: string;
+    maxQuantity: number;
+}
+
+const ConsumeModal: React.FC<ConsumeModalProps> = ({ isOpen, onClose, onConfirm, productName, unit, maxQuantity }) => {
+    const [amount, setAmount] = useState('');
+
+    if (!isOpen) return null;
+
+    const handleSubmit = () => {
+        const val = parseFloat(amount);
+        if (val > 0) {
+            onConfirm(val);
+            setAmount('');
+            onClose();
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-white dark:bg-[#1e1e1e] w-full max-w-sm rounded-2xl p-6 shadow-2xl">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Consumir Producto</h3>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">¿Cuánto {productName} has consumido?</p>
+                
+                <div className="relative mb-6">
+                    <input 
+                        type="number" 
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-black/20 p-4 text-2xl font-bold text-center text-slate-900 dark:text-white focus:ring-2 focus:ring-slate-500/50 outline-none"
+                        placeholder="0"
+                        autoFocus
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium">{unit}</span>
+                </div>
+
+                <div className="flex gap-3">
+                    <button 
+                        onClick={onClose}
+                        className="flex-1 h-12 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-slate-600 dark:text-slate-300"
+                    >
+                        Cancelar
+                    </button>
+                    <button 
+                        onClick={handleSubmit}
+                        disabled={!amount}
+                        className="flex-1 h-12 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold disabled:opacity-50"
+                    >
+                        Confirmar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- Product Item Component ---
+const ProductItem: React.FC<{ 
+    product: Product; 
+    onUpdate: (p: Product) => void;
+    onDelete: (id: string) => void;
+    onConsumeRequest: (p: Product) => void;
+}> = ({ product, onUpdate, onDelete, onConsumeRequest }) => {
   
   const handleDecrement = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const newQuantity = Math.max(0, product.quantity - 1);
-    onUpdate({ ...product, quantity: newQuantity });
+    // If unit is measurable (not simple units), open modal
+    const measurableUnits = ['g', 'ml', 'kg', 'L'];
+    if (measurableUnits.includes(product.unit)) {
+        onConsumeRequest(product);
+    } else {
+        // Standard decrement
+        const newQuantity = Math.max(0, product.quantity - 1);
+        onUpdate({ ...product, quantity: newQuantity });
+    }
   };
 
   const handleIncrement = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onUpdate({ ...product, quantity: product.quantity + 1 });
+    // For incrementing measurable units, we might just add a generic amount or 1.
+    // For simplicity, let's just add 1 (user can edit product for bulk add, or we could add 'Add' modal too)
+    // But typically user consumes variable amounts, buys in fixed packs.
+    // Let's stick to +1 for now or if it's weight, maybe +100g?
+    // User requested "manually select how much is reduced", didn't specify adding.
+    // Let's add 1 for units, and a small step for others to be helpful.
+    let step = 1;
+    if (product.unit === 'g' || product.unit === 'ml') step = 50; 
+    if (product.unit === 'kg' || product.unit === 'L') step = 0.5;
+
+    onUpdate({ ...product, quantity: product.quantity + step });
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if(window.confirm('¿Eliminar este producto permanentemente?')) {
+          onDelete(product.id);
+      }
   };
 
   return (
-    <div className="flex items-center gap-3 bg-white dark:bg-surface-dark px-3 min-h-[80px] py-3 rounded-xl shadow-sm border border-transparent dark:border-white/5 transition-colors">
+    <div className="group/item relative flex items-center gap-3 bg-white dark:bg-surface-dark px-3 min-h-[80px] py-3 rounded-xl shadow-sm border border-transparent dark:border-white/5 transition-colors overflow-hidden">
+      
+      {/* Delete Button (Visible on Hover/Focus or Swipe logic - simplified to absolute position) */}
+      <button 
+        onClick={handleDelete}
+        className="absolute right-2 top-2 text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 p-1 rounded-full z-10 opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity"
+      >
+        <span className="material-symbols-outlined text-lg">delete</span>
+      </button>
+
       <div className={`flex items-center justify-center rounded-lg shrink-0 size-12 ${getStatusColorClass(product.status)}`}>
         <span className="material-symbols-outlined">{getStatusIcon(product.status)}</span>
       </div>
       
       <div className="flex flex-col justify-center flex-1 min-w-0 mr-2">
-        <p className="text-slate-800 dark:text-white text-base font-bold leading-tight truncate">{product.name}</p>
+        <p className="text-slate-800 dark:text-white text-base font-bold leading-tight truncate pr-6">{product.name}</p>
         <p className={`text-xs mt-1 truncate ${getStatusTextClass(product.status)}`}>
           {getStatusMessage(product)}
         </p>
       </div>
 
-      <div className="shrink-0 flex items-center bg-slate-50 dark:bg-black/20 rounded-lg p-1 gap-3 border border-slate-100 dark:border-white/5">
+      <div className="shrink-0 flex items-center bg-slate-50 dark:bg-black/20 rounded-lg p-1 gap-3 border border-slate-100 dark:border-white/5 mt-4 sm:mt-0">
         <button 
           onClick={handleDecrement}
           className="size-8 flex items-center justify-center rounded-md bg-white dark:bg-surface-dark text-slate-600 dark:text-slate-300 shadow-sm active:scale-95 transition-transform"
@@ -78,9 +181,9 @@ const ProductItem: React.FC<{ product: Product; onUpdate: (p: Product) => void }
           <span className="material-symbols-outlined text-lg">remove</span>
         </button>
         
-        <div className="flex flex-col items-center w-8">
-            <span className="text-slate-800 dark:text-white text-base font-bold leading-none">{product.quantity}</span>
-            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium leading-none mt-0.5">{product.unit.substring(0,3)}</span>
+        <div className="flex flex-col items-center w-12 text-center">
+            <span className="text-slate-800 dark:text-white text-base font-bold leading-none">{Number(product.quantity).toLocaleString()}</span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium leading-none mt-0.5">{product.unit}</span>
         </div>
 
         <button 
@@ -94,7 +197,7 @@ const ProductItem: React.FC<{ product: Product; onUpdate: (p: Product) => void }
   );
 };
 
-// Modal for adding/editing categories
+// --- Category Modal ---
 const CategoryModal: React.FC<{ 
     isOpen: boolean; 
     onClose: () => void; 
@@ -107,25 +210,20 @@ const CategoryModal: React.FC<{
     const [name, setName] = useState(initialName);
     const [icon, setIcon] = useState(initialIcon);
 
-    // Reset state when opening
     React.useEffect(() => {
         if(isOpen) {
             setName(initialName || '');
             setIcon(initialIcon || 'inventory_2');
-        } else {
-             // Clear on close
-             setName('');
-             setIcon('inventory_2');
         }
     }, [isOpen, initialName, initialIcon]);
 
     if (!isOpen) return null;
 
-    const icons = ['inventory_2', 'restaurant', 'cleaning_services', 'soap', 'pets', 'checkroom', 'kitchen', 'medication', 'toys', 'construction', 'spa'];
+    const icons = ['inventory_2', 'restaurant', 'cleaning_services', 'soap', 'pets', 'checkroom', 'kitchen', 'medication', 'toys', 'construction', 'spa', 'local_cafe', 'bakery_dining', 'liquor'];
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-            <div className="bg-white dark:bg-[#1e1e1e] w-full max-w-sm rounded-2xl p-6 shadow-2xl transform transition-all">
+            <div className="bg-white dark:bg-[#1e1e1e] w-full max-w-sm rounded-2xl p-6 shadow-2xl">
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
                     {isEdit ? 'Editar Categoría' : 'Nueva Categoría'}
                 </h3>
@@ -143,12 +241,12 @@ const CategoryModal: React.FC<{
                     
                     <div>
                         <label className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2 block">Icono</label>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="grid grid-cols-5 gap-2">
                             {icons.map(ic => (
                                 <button
                                     key={ic}
                                     onClick={() => setIcon(ic)}
-                                    className={`p-2 rounded-lg transition-all ${icon === ic ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 scale-110' : 'bg-slate-100 dark:bg-white/5 text-slate-500 hover:bg-slate-200 dark:hover:bg-white/10'}`}
+                                    className={`aspect-square flex items-center justify-center rounded-lg transition-all ${icon === ic ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 scale-110' : 'bg-slate-100 dark:bg-white/5 text-slate-500 hover:bg-slate-200 dark:hover:bg-white/10'}`}
                                 >
                                     <span className="material-symbols-outlined text-xl">{ic}</span>
                                 </button>
@@ -162,7 +260,6 @@ const CategoryModal: React.FC<{
                         <button 
                             onClick={onDelete}
                             className="flex items-center justify-center h-12 w-12 rounded-xl bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
-                            title="Eliminar Categoría"
                         >
                             <span className="material-symbols-outlined">delete</span>
                         </button>
@@ -191,14 +288,19 @@ const CategoryModal: React.FC<{
     );
 };
 
+// --- Main Component ---
 export const Inventory: React.FC<InventoryProps> = ({ 
-    products, categories, onUpdateProduct, onAddCategory, onUpdateCategory, onDeleteCategory 
+    products, categories, onUpdateProduct, onDeleteProduct, onAddCategory, onUpdateCategory, onDeleteCategory 
 }) => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Modal States
+  const [isCatModalOpen, setIsCatModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  
+  const [isConsumeModalOpen, setIsConsumeModalOpen] = useState(false);
+  const [consumeProduct, setConsumeProduct] = useState<Product | null>(null);
 
   // Filtering
   const activeProducts = products.filter(p => p.quantity > 0);
@@ -221,20 +323,28 @@ export const Inventory: React.FC<InventoryProps> = ({
 
   const handleEditClick = (cat: Category) => {
     setEditingCategory(cat);
-    setIsModalOpen(true);
+    setIsCatModalOpen(true);
   };
 
-  const handleAddClick = () => {
+  const handleAddCatClick = () => {
     setEditingCategory(null);
-    setIsModalOpen(true);
+    setIsCatModalOpen(true);
   };
 
-  const handleScanQR = () => {
-      alert("Abriendo escáner de códigos QR...");
+  const handleConsumeRequest = (p: Product) => {
+      setConsumeProduct(p);
+      setIsConsumeModalOpen(true);
   };
 
-  const handleMenuClick = () => {
-      alert("Opciones: \n- Exportar inventario \n- Configuración \n- Ayuda");
+  const handleConsumeConfirm = (amount: number) => {
+      if (consumeProduct) {
+          const newQuantity = Math.max(0, consumeProduct.quantity - amount);
+          onUpdateProduct({ ...consumeProduct, quantity: newQuantity });
+      }
+  };
+
+  const handleAddProductToCategory = (catId: string) => {
+      navigate('/add', { state: { categoryId: catId } });
   };
 
   return (
@@ -248,13 +358,11 @@ export const Inventory: React.FC<InventoryProps> = ({
                 <h1 className="text-slate-800 dark:text-white text-xl font-bold leading-tight tracking-tight flex-1">Mi Inventario</h1>
                 <div className="flex items-center justify-end gap-2">
                     <button 
-                        onClick={handleScanQR}
                         className="flex items-center justify-center rounded-full h-12 w-12 text-slate-700 dark:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
                     >
                         <span className="material-symbols-outlined">qr_code_scanner</span>
                     </button>
                     <button 
-                        onClick={handleMenuClick} 
                         className="flex items-center justify-center rounded-full h-12 w-12 text-slate-700 dark:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
                     >
                         <span className="material-symbols-outlined">more_vert</span>
@@ -283,31 +391,56 @@ export const Inventory: React.FC<InventoryProps> = ({
             {/* Dynamic Categories */}
             {categories.map(cat => {
                 const catProducts = filteredProducts.filter(p => p.categoryId === cat.id);
-                // Only hide empty categories if searching, otherwise show them so user can edit them
+                // If searching, hide empty categories
                 if (searchTerm && catProducts.length === 0) return null;
 
                 return (
                     <div key={cat.id} className="space-y-3">
+                        {/* Category Header */}
                         <div className="flex items-center justify-between px-1 group">
                             <div className="flex items-center gap-2">
                                 <span className="material-symbols-outlined text-slate-400 text-lg">{cat.icon}</span>
                                 <h2 className="text-lg font-bold text-slate-800 dark:text-white">{cat.name}</h2>
                             </div>
-                            <button 
-                                onClick={() => handleEditClick(cat)}
-                                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-full hover:bg-slate-200 dark:hover:bg-white/10 transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
-                            >
-                                <span className="material-symbols-outlined text-lg">edit</span>
-                            </button>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => handleAddProductToCategory(cat.id)}
+                                    className="h-8 w-8 flex items-center justify-center rounded-full bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-white hover:bg-primary hover:text-white transition-colors"
+                                    title="Añadir producto a esta categoría"
+                                >
+                                    <span className="material-symbols-outlined text-lg">add</span>
+                                </button>
+                                <button 
+                                    onClick={() => handleEditClick(cat)}
+                                    className="h-8 w-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                                >
+                                    <span className="material-symbols-outlined text-lg">edit</span>
+                                </button>
+                            </div>
                         </div>
                         
+                        {/* Products List */}
                         {catProducts.length > 0 ? (
                             <div className="space-y-3">
-                                {catProducts.map(p => <ProductItem key={p.id} product={p} onUpdate={onUpdateProduct} />)}
+                                {catProducts.map(p => (
+                                    <ProductItem 
+                                        key={p.id} 
+                                        product={p} 
+                                        onUpdate={onUpdateProduct} 
+                                        onDelete={onDeleteProduct}
+                                        onConsumeRequest={handleConsumeRequest}
+                                    />
+                                ))}
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center py-6 border-2 border-dashed border-slate-200 dark:border-white/5 rounded-xl text-slate-400">
-                                <p className="text-sm">Sin productos</p>
+                                <p className="text-sm mb-2">Sin productos</p>
+                                <button 
+                                    onClick={() => handleAddProductToCategory(cat.id)}
+                                    className="text-xs font-bold text-primary dark:text-white bg-slate-100 dark:bg-white/10 px-3 py-1.5 rounded-lg"
+                                >
+                                    + Añadir aquí
+                                </button>
                             </div>
                         )}
                     </div>
@@ -322,20 +455,20 @@ export const Inventory: React.FC<InventoryProps> = ({
                 </div>
              )}
 
-             {/* Add Category Button at bottom of list */}
+             {/* Add Category Button */}
              <button 
-                onClick={handleAddClick}
+                onClick={handleAddCatClick}
                 className="w-full py-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-bold flex items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
              >
                 <span className="material-symbols-outlined">add_circle</span>
-                Nueva Categoría
+                Nueva Categoría Principal
              </button>
 
         </main>
 
         <CategoryModal 
-            isOpen={isModalOpen}
-            onClose={() => setIsModalOpen(false)}
+            isOpen={isCatModalOpen}
+            onClose={() => setIsCatModalOpen(false)}
             onSave={handleSaveCategory}
             initialName={editingCategory?.name}
             initialIcon={editingCategory?.icon}
@@ -343,9 +476,18 @@ export const Inventory: React.FC<InventoryProps> = ({
             onDelete={() => {
                 if(editingCategory) {
                     onDeleteCategory(editingCategory.id);
-                    setIsModalOpen(false);
+                    setIsCatModalOpen(false);
                 }
             }}
+        />
+
+        <ConsumeModal 
+            isOpen={isConsumeModalOpen}
+            onClose={() => setIsConsumeModalOpen(false)}
+            onConfirm={handleConsumeConfirm}
+            productName={consumeProduct?.name || ''}
+            unit={consumeProduct?.unit || ''}
+            maxQuantity={consumeProduct?.quantity || 0}
         />
         
         <BottomNav />

@@ -3,15 +3,13 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User } from '../types';
 
-const INITIAL_MEMBERS: User[] = [
-    { id: '1', name: 'Ana García', email: 'ana.garcia@email.com', avatarUrl: '', role: 'owner', isCurrentUser: true },
-    { id: '2', name: 'Ana Gómez', email: 'ana.gomez@email.com', avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDLNA3YZOo9mbFhzDJkLsgSzsYpVuPOzvFpYnEEoEwE69N76rYiMcFXllwRHIK7JANcAFumOCEIXgQPdDFjsOkAttniX5er7ZVINowYSqy01Vy_g8cLqfMz-tltajfkAkVN48jripHGh_GxFrxufiXE2xCCYl8G58zVz1eMFc6D_dwNgHv502bhG4DS3T5_SXhRxsBoGvKngaF5NwekYADaH2maYp6Lc80o2-zF55QKeK3O_n_mce9ulVetIc6hyn9DyYvSE7lFoEs', role: 'editor' },
-    { id: '3', name: 'Javier Peña', email: 'jpena@email.com', avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB9TlhlXyt-l8AUz_tqVaGE46v3_emIsf-27KvcsuZZ_QS_28eoueZFABYHVBmuLVuY23cLOvz4p8rZ6FRl_5xeDGT6QvIkD86oJNmXxMaI8OHV5muBDBQl-UiTP1nIAvLjvrDWBOMJbh59FEGmI4uUBMj1Fq1z83Jm1GMQdbFM5dY7U-8bREW-ZVWm_0o_GH65wjpWbZjHjgchInxFAnReAen5sVQbUK0FFpeuyxcc5t4qc7OEwrZfi0RuiJhf4qmijFSRAhuukNM', role: 'viewer' },
-];
+interface ManageAccessProps {
+    members: User[];
+    onUpdateMembers: (members: User[]) => void;
+}
 
-export const ManageAccess: React.FC = () => {
+export const ManageAccess: React.FC<ManageAccessProps> = ({ members, onUpdateMembers }) => {
   const navigate = useNavigate();
-  const [members, setMembers] = useState<User[]>(INITIAL_MEMBERS);
   const [inviteEmail, setInviteEmail] = useState('');
 
   const handleInvite = () => {
@@ -21,6 +19,15 @@ export const ManageAccess: React.FC = () => {
           return;
       }
       
+      const newUser: User = {
+          id: Date.now().toString(),
+          name: inviteEmail.split('@')[0],
+          email: inviteEmail,
+          avatarUrl: '',
+          role: 'viewer'
+      };
+
+      onUpdateMembers([...members, newUser]);
       alert(`Invitación enviada a ${inviteEmail}`);
       setInviteEmail('');
   };
@@ -31,12 +38,12 @@ export const ManageAccess: React.FC = () => {
 
   const handleRemoveMember = (id: string, name: string) => {
       if (window.confirm(`¿Eliminar a ${name} del inventario?`)) {
-          setMembers(prev => prev.filter(m => m.id !== id));
+          onUpdateMembers(members.filter(m => m.id !== id));
       }
   };
 
   const handleRoleChange = (id: string, newRole: 'editor' | 'viewer') => {
-      setMembers(prev => prev.map(m => m.id === id ? { ...m, role: newRole } : m));
+      onUpdateMembers(members.map(m => m.id === id ? { ...m, role: newRole } : m));
   };
 
   const handleMenuClick = () => {
@@ -100,7 +107,7 @@ export const ManageAccess: React.FC = () => {
                                     TÚ
                                 </div>
                             ) : (
-                                <img className="h-12 w-12 rounded-full object-cover" src={member.avatarUrl} alt={member.name} />
+                                <img className="h-12 w-12 rounded-full object-cover" src={member.avatarUrl || `https://ui-avatars.com/api/?name=${member.name}&background=random`} alt={member.name} />
                             )}
                             
                             <div className="flex-1">
