@@ -1,0 +1,7 @@
+{
+  "name": "inventario casa facil",
+  "description": "Una aplicación moderna para gestionar el inventario del hogar, controlar fechas de vencimiento y colaborar con familiares.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
