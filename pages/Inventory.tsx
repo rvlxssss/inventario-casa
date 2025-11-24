@@ -169,61 +169,65 @@ const ProductItem: React.FC<{
   }
 
   return (
-    <div className="group/item relative flex items-center gap-3 bg-white dark:bg-surface-dark px-3 min-h-[80px] py-3 rounded-xl shadow-sm border border-transparent dark:border-white/5 transition-colors overflow-hidden">
+    <div className="group/item flex items-start gap-3 bg-white dark:bg-surface-dark px-3 py-3 rounded-xl shadow-sm border border-transparent dark:border-white/5 transition-colors">
       
       {/* Icon */}
-      <div className={`flex items-center justify-center rounded-lg shrink-0 size-12 ${getStatusColorClass(product.status)}`}>
+      <div className={`flex items-center justify-center rounded-lg shrink-0 size-12 mt-1 ${getStatusColorClass(product.status)}`}>
         <span className="material-symbols-outlined">{getStatusIcon(product.status)}</span>
       </div>
       
-      {/* Text Info - Added pr-16 to prevent overlap with absolute buttons */}
-      <div className="flex flex-col justify-center flex-1 min-w-0 mr-1 pr-16 sm:pr-0">
-        <p className="text-slate-800 dark:text-white text-base font-bold leading-tight truncate">{product.name}</p>
+      {/* Text Info */}
+      <div className="flex flex-col flex-1 min-w-0 py-0.5">
+        <p className="text-slate-800 dark:text-white text-base font-bold leading-tight break-words">{product.name}</p>
         <p className={`text-xs mt-1 truncate ${getStatusTextClass(product.status)}`}>
           {getStatusMessage(product)}
         </p>
       </div>
 
-      {/* Edit & Delete Buttons (Absolute) */}
-      {!isReadOnly && (
-        <div className="absolute right-0 top-0 flex items-center z-10">
-             <button 
-                onClick={handleEdit}
-                className="p-3 text-slate-300 hover:text-blue-500 dark:text-slate-600 dark:hover:text-blue-400"
-            >
-                <span className="material-symbols-outlined text-xl">edit</span>
-            </button>
+      {/* Right Column: Actions & Controls */}
+      <div className="flex flex-col items-end gap-2 shrink-0">
+          
+          {/* Edit & Delete Buttons (Top Right) */}
+          {!isReadOnly && (
+            <div className="flex items-center gap-0">
+                 <button 
+                    onClick={handleEdit}
+                    className="p-2 text-slate-300 hover:text-blue-500 dark:text-slate-600 dark:hover:text-blue-400 rounded-full hover:bg-slate-50 dark:hover:bg-white/5"
+                >
+                    <span className="material-symbols-outlined text-lg">edit</span>
+                </button>
+                <button 
+                    onClick={handleDelete}
+                    className="p-2 text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 rounded-full hover:bg-slate-50 dark:hover:bg-white/5"
+                >
+                    <span className="material-symbols-outlined text-lg">delete</span>
+                </button>
+            </div>
+          )}
+
+          {/* Quantity Controls (Bottom Right) */}
+          <div className="flex items-center bg-slate-50 dark:bg-black/20 rounded-lg p-0.5 gap-0.5 border border-slate-100 dark:border-white/5">
             <button 
-                onClick={handleDelete}
-                className="p-3 text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400"
+              onClick={handleDecrement}
+              disabled={isReadOnly}
+              className="size-7 flex items-center justify-center rounded-md bg-white dark:bg-surface-dark text-slate-600 dark:text-slate-300 shadow-sm active:scale-95 transition-transform disabled:opacity-50"
             >
-                <span className="material-symbols-outlined text-xl">delete</span>
+              <span className="material-symbols-outlined text-sm">remove</span>
             </button>
-        </div>
-      )}
+            
+            <div className="flex flex-col items-center min-w-[3rem] px-1 text-center">
+                <span className="text-slate-800 dark:text-white text-sm font-bold leading-none">{Number(product.quantity).toLocaleString()}</span>
+                <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium leading-none mt-0.5 truncate max-w-[3rem]">{product.unit}</span>
+            </div>
 
-      {/* Controls */}
-      <div className="shrink-0 flex items-center bg-slate-50 dark:bg-black/20 rounded-lg p-1 gap-1 sm:gap-3 border border-slate-100 dark:border-white/5 mt-auto">
-        <button 
-          onClick={handleDecrement}
-          disabled={isReadOnly}
-          className="size-8 flex items-center justify-center rounded-md bg-white dark:bg-surface-dark text-slate-600 dark:text-slate-300 shadow-sm active:scale-95 transition-transform disabled:opacity-50"
-        >
-          <span className="material-symbols-outlined text-lg">remove</span>
-        </button>
-        
-        <div className="flex flex-col items-center min-w-[3rem] text-center">
-            <span className="text-slate-800 dark:text-white text-sm sm:text-base font-bold leading-none">{Number(product.quantity).toLocaleString()}</span>
-            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium leading-none mt-0.5">{product.unit}</span>
-        </div>
-
-        <button 
-          onClick={handleIncrement}
-          disabled={isReadOnly}
-          className="size-8 flex items-center justify-center rounded-md bg-white dark:bg-surface-dark text-slate-600 dark:text-slate-300 shadow-sm active:scale-95 transition-transform disabled:opacity-50"
-        >
-          <span className="material-symbols-outlined text-lg">add</span>
-        </button>
+            <button 
+              onClick={handleIncrement}
+              disabled={isReadOnly}
+              className="size-7 flex items-center justify-center rounded-md bg-white dark:bg-surface-dark text-slate-600 dark:text-slate-300 shadow-sm active:scale-95 transition-transform disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-sm">add</span>
+            </button>
+          </div>
       </div>
     </div>
   );
