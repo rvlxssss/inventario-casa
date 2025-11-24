@@ -33,7 +33,15 @@ export const ManageAccess: React.FC<ManageAccessProps> = ({ members, onUpdateMem
   };
 
   const handleCopyLink = () => {
-      alert('Enlace de invitación copiado al portapapeles');
+      // Generate a link that points to the current page with a query param
+      // In a real app, this would be a unique token.
+      const baseUrl = window.location.href.split('#')[0]; // Get base URL without hash
+      const randomCode = Math.random().toString(36).substring(7);
+      const inviteLink = `${baseUrl}?invite=${randomCode}#`;
+      
+      navigator.clipboard.writeText(inviteLink).then(() => {
+        alert('Enlace copiado al portapapeles:\n' + inviteLink + '\n\nCualquiera con este enlace podrá unirse.');
+      });
   };
 
   const handleRemoveMember = (id: string, name: string) => {
@@ -89,7 +97,7 @@ export const ManageAccess: React.FC<ManageAccessProps> = ({ members, onUpdateMem
                     className="flex items-center justify-center gap-2 rounded-xl h-14 bg-slate-200 dark:bg-white/10 text-slate-900 dark:text-white font-bold hover:bg-slate-300 dark:hover:bg-white/20 transition-colors active:scale-[0.98]"
                 >
                     <span className="material-symbols-outlined">link</span>
-                    <span>Crear Enlace de Invitación</span>
+                    <span>Copiar Enlace de Invitación</span>
                 </button>
             </div>
         </section>
@@ -130,7 +138,9 @@ export const ManageAccess: React.FC<ManageAccessProps> = ({ members, onUpdateMem
                         {/* Role Controls */}
                         {member.isCurrentUser ? (
                             <div className="flex items-center justify-between rounded-lg bg-slate-100 dark:bg-black/20 p-3">
-                                <p className="text-slate-700 dark:text-slate-300 font-medium text-sm">Propietario</p>
+                                <p className="text-slate-700 dark:text-slate-300 font-medium text-sm">
+                                    {member.role === 'owner' ? 'Propietario' : member.role === 'editor' ? 'Editor' : 'Lector'}
+                                </p>
                                 <span className="material-symbols-outlined text-slate-400 text-sm">lock</span>
                             </div>
                         ) : (

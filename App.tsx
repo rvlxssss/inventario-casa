@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './pages/Login';
@@ -28,60 +27,259 @@ const INITIAL_PRODUCTS: Product[] = [
 ];
 
 const INITIAL_MEMBERS: User[] = [
-    { id: '1', name: 'Ana García', email: 'ana.garcia@email.com', avatarUrl: '', role: 'owner', isCurrentUser: true },
+    { id: '1', name: 'Ana García', email: 'ana.garcia@email.com', avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBPvFGoPvtrNCKL4PffxiXg_GCTuLG5Y_dAffAAgW1xF2DkTqH7t7SYcZeuVrVODhUbyz2_QpOu2XNlM6Z62hN8rZNrppCrGPtn7gkKNRrvMws5bzowGSVQBLQdgvek1wFCjHhyJyJF4OGXEkWn8pFHgANihPaYVE2nAWCoc10VOTK3gr6EIyA6GN95TJWmjRMOp1RyRTMHJEgoJAceR43NMCxM2AGmjllI6FhUHFBwOX3tRI0xyj2inW3soq0h66rWMAxubYgl47A', role: 'owner', isCurrentUser: true },
     { id: '2', name: 'Ana Gómez', email: 'ana.gomez@email.com', avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDLNA3YZOo9mbFhzDJkLsgSzsYpVuPOzvFpYnEEoEwE69N76rYiMcFXllwRHIK7JANcAFumOCEIXgQPdDFjsOkAttniX5er7ZVINowYSqy01Vy_g8cLqfMz-tltajfkAkVN48jripHGh_GxFrxufiXE2xCCYl8G58zVz1eMFc6D_dwNgHv502bhG4DS3T5_SXhRxsBoGvKngaF5NwekYADaH2maYp6Lc80o2-zF55QKeK3O_n_mce9ulVetIc6hyn9DyYvSE7lFoEs', role: 'editor' },
 ];
 
 // Helper to load from local storage
 const loadState = <T,>(key: string, fallback: T): T => {
   const saved = localStorage.getItem(key);
-  return saved ? JSON.parse(saved) : fallback;
+  try {
+      return saved ? JSON.parse(saved) : fallback;
+  } catch (e) {
+      console.error(`Error parsing ${key} from localStorage`, e);
+      return fallback;
+  }
 };
+
+// Helper to decode JWT correctly handling UTF-8 characters
+const decodeJwt = (token: string) => {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        console.error("Failed to decode JWT", e);
+        return null;
+    }
+};
+
+// --- Invite Modal Component ---
+const JoinInviteModal: React.FC<{
+    isOpen: boolean;
+    onJoin: (name: string) => void;
+    onClose: () => void;
+}> = ({ isOpen, onJoin, onClose }) => {
+    const [name, setName] = useState('');
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+             <div className="bg-white dark:bg-[#1e1e1e] w-full max-w-sm rounded-2xl p-6 shadow-2xl text-center">
+                <div className="h-16 w-16 bg-slate-100 dark:bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="material-symbols-outlined text-3xl text-slate-900 dark:text-white">group_add</span>
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">¡Te han invitado!</h3>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">
+                    Has recibido una invitación para colaborar en este inventario. Ingresa tu nombre para unirte.
+                </p>
+                <input 
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-black/20 p-4 mb-4 text-slate-900 dark:text-white focus:ring-2 focus:ring-slate-500/50 outline-none"
+                    placeholder="Tu nombre"
+                    autoFocus
+                />
+                <button 
+                    onClick={() => {
+                        if (name) onJoin(name);
+                    }}
+                    className="w-full h-12 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold hover:opacity-90 transition-opacity"
+                >
+                    Unirse al Equipo
+                </button>
+                <button 
+                    onClick={onClose}
+                    className="mt-4 text-sm text-slate-500 underline"
+                >
+                    Ignorar
+                </button>
+             </div>
+        </div>
+    );
+}
+
 
 const App: React.FC = () => {
   // State with persistence
   const [products, setProducts] = useState<Product[]>(() => loadState('products', INITIAL_PRODUCTS));
   const [categories, setCategories] = useState<Category[]>(() => loadState('categories', INITIAL_CATEGORIES));
   const [members, setMembers] = useState<User[]>(() => loadState('members', INITIAL_MEMBERS));
-  const [isAuthenticated, setIsAuthenticated] = useState(() => loadState('isAuthenticated', false));
+  
+  // Auth State
+  const [loggedUserId, setLoggedUserId] = useState<string | null>(() => {
+      const savedId = loadState<string | null>('loggedUserId', null);
+      // Validar si el ID guardado realmente existe en miembros
+      // Si no existe, es mejor forzar logout para evitar estados inconsistentes
+      // PERO, como members se carga de localStorage también, deberíamos comprobarlo
+      return savedId;
+  });
+
+  // Invite Logic State
+  const [pendingInvite, setPendingInvite] = useState<boolean>(false);
 
   // Persistence Effects
   useEffect(() => { localStorage.setItem('products', JSON.stringify(products)); }, [products]);
   useEffect(() => { localStorage.setItem('categories', JSON.stringify(categories)); }, [categories]);
   useEffect(() => { localStorage.setItem('members', JSON.stringify(members)); }, [members]);
-  useEffect(() => { localStorage.setItem('isAuthenticated', JSON.stringify(isAuthenticated)); }, [isAuthenticated]);
+  
+  // Persist User Session
+  useEffect(() => { 
+      if (loggedUserId) {
+          localStorage.setItem('loggedUserId', JSON.stringify(loggedUserId)); 
+      } else {
+          localStorage.removeItem('loggedUserId');
+      }
+  }, [loggedUserId]);
 
-  const handleLogin = () => {
-    setIsAuthenticated(true);
+  // Check for invite link on load
+  useEffect(() => {
+      const params = new URLSearchParams(window.location.search);
+      const inviteCode = params.get('invite');
+      if (inviteCode) {
+          setPendingInvite(true);
+      }
+  }, []);
+
+  // Determine current user object based on loggedUserId
+  const currentUser = React.useMemo(() => {
+      if (!loggedUserId) return null;
+      return members.find(m => m.id === loggedUserId) || null;
+  }, [members, loggedUserId]);
+
+  // Si tenemos loggedUserId pero no currentUser, significa que los datos se desincronizaron.
+  // Podríamos limpiar la sesión aquí.
+  useEffect(() => {
+      if (loggedUserId && !currentUser && members.length > 0) {
+          console.warn("User ID in session not found in members list. Logging out.");
+          setLoggedUserId(null);
+      }
+  }, [loggedUserId, currentUser, members]);
+
+  const isAuthenticated = !!currentUser;
+
+  const handleJoinTeam = (name: string) => {
+      const newUserId = Date.now().toString();
+      const newUser: User = {
+          id: newUserId,
+          name: name,
+          email: `${name.toLowerCase().replace(/\s+/g, '.')}@demo.com`,
+          avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
+          role: 'editor',
+          isCurrentUser: true // Flag mostly for initial setup
+      };
+
+      setMembers(prev => [...prev.map(m => ({ ...m, isCurrentUser: false })), newUser]);
+      setLoggedUserId(newUserId);
+      setPendingInvite(false);
+      
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+  };
+
+  const handleManualLogin = () => {
+    // For manual demo login, just use the first user or create a demo one
+    if (members.length > 0) {
+        setLoggedUserId(members[0].id);
+    } else {
+        const demoUser: User = {
+            id: 'demo_user',
+            name: 'Usuario Demo',
+            email: 'demo@pantrypal.com',
+            avatarUrl: '',
+            role: 'owner',
+            isCurrentUser: true
+        };
+        setMembers([demoUser]);
+        setLoggedUserId(demoUser.id);
+    }
+  };
+
+  const handleGoogleLogin = (credentialResponse: any) => {
+      const token = credentialResponse.credential;
+      const decoded = decodeJwt(token);
+
+      console.log("Google Login Payload:", decoded);
+
+      if (decoded) {
+          // Usamos 'sub' como ID único de Google, pero también buscamos por email por si acaso
+          // para no duplicar usuarios si ya fueron invitados por email.
+          const existingUser = members.find(m => m.email === decoded.email || m.id === decoded.sub);
+
+          if (existingUser) {
+              console.log("User exists, logging in:", existingUser.name);
+              // Log in existing user
+              setLoggedUserId(existingUser.id);
+              
+              // Actualizar datos de Google si han cambiado (foto, nombre)
+              const needsUpdate = existingUser.avatarUrl !== decoded.picture || existingUser.name !== decoded.name;
+              
+              if (needsUpdate) {
+                  setMembers(prev => prev.map(m => m.id === existingUser.id ? { 
+                      ...m, 
+                      name: decoded.name, // Opcional: mantener nombre local si se prefiere
+                      avatarUrl: decoded.picture 
+                  } : m));
+              }
+          } else {
+              console.log("New user, creating account:", decoded.name);
+              // Register new user from Google
+              const newUser: User = {
+                  id: decoded.sub, // Use Google ID as stable ID
+                  name: decoded.name,
+                  email: decoded.email,
+                  avatarUrl: decoded.picture,
+                  role: 'owner', // Default role for new sign-ups. En app real, esto sería 'viewer' si no es el creador del grupo.
+                  isCurrentUser: true
+              };
+              setMembers(prev => [...prev, newUser]);
+              setLoggedUserId(newUser.id);
+          }
+      }
   };
 
   const handleLogout = () => {
-    setIsAuthenticated(false);
+    setLoggedUserId(null);
+    localStorage.removeItem('loggedUserId');
+    // Si usáramos google.accounts.id.disableAutoSelect() aquí, prevendría el login automático en la sig visita
+    if (window.google && window.google.accounts) {
+        window.google.accounts.id.disableAutoSelect();
+    }
   };
 
   // Product Handlers
   const addProduct = (newProduct: Product) => {
+    if (currentUser?.role === 'viewer') return;
     setProducts(prev => [newProduct, ...prev]);
   };
 
   const updateProduct = (updatedProduct: Product) => {
+    if (currentUser?.role === 'viewer') return;
     setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
   };
 
   const deleteProduct = (productId: string) => {
+      if (currentUser?.role === 'viewer') return;
       setProducts(prev => prev.filter(p => p.id !== productId));
   };
 
   // Category Handlers
   const addCategory = (category: Category) => {
+    if (currentUser?.role === 'viewer') return;
     setCategories(prev => [...prev, category]);
   };
 
   const updateCategory = (updatedCategory: Category) => {
+    if (currentUser?.role === 'viewer') return;
     setCategories(prev => prev.map(c => c.id === updatedCategory.id ? updatedCategory : c));
   };
 
   const deleteCategory = (categoryId: string) => {
+    if (currentUser?.role === 'viewer') return;
     if (window.confirm('¿Seguro que quieres eliminar esta categoría? Se borrarán los productos asociados.')) {
         setProducts(prev => prev.filter(p => p.categoryId !== categoryId));
         setCategories(prev => prev.filter(c => c.id !== categoryId));
@@ -92,15 +290,35 @@ const App: React.FC = () => {
   const updateMembers = (newMembers: User[]) => {
       setMembers(newMembers);
   };
+  
+  const handleUpdateUser = (updatedUser: User) => {
+      setMembers(prev => prev.map(m => m.id === updatedUser.id ? updatedUser : m));
+  };
 
   return (
     <Router>
       <div className="bg-background-light dark:bg-background-dark min-h-screen text-slate-900 dark:text-white font-display">
+        
+        <JoinInviteModal 
+            isOpen={pendingInvite} 
+            onJoin={handleJoinTeam} 
+            onClose={() => setPendingInvite(false)} 
+        />
+
         <Routes>
-          <Route path="/" element={!isAuthenticated ? <Login onLogin={handleLogin} /> : <Navigate to="/inventory" />} />
+          <Route 
+            path="/" 
+            element={
+                !isAuthenticated ? 
+                <Login 
+                    onLogin={handleManualLogin} 
+                    onGoogleLogin={handleGoogleLogin} 
+                /> : <Navigate to="/inventory" />
+            } 
+          />
           <Route 
             path="/inventory" 
-            element={isAuthenticated ? 
+            element={isAuthenticated && currentUser ? 
                 <Inventory 
                     products={products} 
                     categories={categories}
@@ -109,29 +327,39 @@ const App: React.FC = () => {
                     onAddCategory={addCategory}
                     onUpdateCategory={updateCategory}
                     onDeleteCategory={deleteCategory}
+                    userRole={currentUser.role}
                 /> : <Navigate to="/" />} 
             />
           <Route 
             path="/shopping-list" 
-            element={isAuthenticated ? 
+            element={isAuthenticated && currentUser ? 
                 <ShoppingList 
                     products={products} 
                     categories={categories}
-                    onUpdateProduct={updateProduct} 
+                    onUpdateProduct={updateProduct}
+                    userRole={currentUser.role} 
                 /> : <Navigate to="/" />} 
             />
           <Route 
             path="/add" 
-            element={isAuthenticated ? 
+            element={isAuthenticated && currentUser ? 
                 <AddProduct 
                     categories={categories}
                     onAdd={addProduct} 
                 /> : <Navigate to="/" />} 
             />
-          <Route path="/profile" element={isAuthenticated ? <Profile onLogout={handleLogout} /> : <Navigate to="/" />} />
+          <Route 
+            path="/profile" 
+            element={isAuthenticated && currentUser ? 
+                <Profile 
+                    user={currentUser}
+                    onUpdateUser={handleUpdateUser}
+                    onLogout={handleLogout} 
+                /> : <Navigate to="/" />} 
+            />
           <Route 
             path="/access" 
-            element={isAuthenticated ? 
+            element={isAuthenticated && currentUser ? 
                 <ManageAccess 
                     members={members} 
                     onUpdateMembers={updateMembers} 

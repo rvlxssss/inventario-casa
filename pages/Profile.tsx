@@ -2,13 +2,130 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BottomNav } from '../components/BottomNav';
+import { User } from '../types';
 
 interface ProfileProps {
+    user: User;
+    onUpdateUser: (user: User) => void;
     onLogout: () => void;
 }
 
-export const Profile: React.FC<ProfileProps> = ({ onLogout }) => {
+// --- Edit Profile Modal ---
+interface EditProfileModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    user: User;
+    onSave: (name: string, email: string, avatarUrl: string) => void;
+}
+
+const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, user, onSave }) => {
+    const [name, setName] = useState(user.name);
+    const [email, setEmail] = useState(user.email);
+    const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl);
+
+    // Reset state when modal opens
+    React.useEffect(() => {
+        if (isOpen) {
+            setName(user.name);
+            setEmail(user.email);
+            setAvatarUrl(user.avatarUrl);
+        }
+    }, [isOpen, user]);
+
+    if (!isOpen) return null;
+
+    const handleRandomizeAvatar = () => {
+        const randomStr = Math.random().toString(36).substring(7);
+        setAvatarUrl(`https://api.dicebear.com/7.x/avataaars/svg?seed=${name || randomStr}`);
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+             <div className="bg-white dark:bg-[#1e1e1e] w-full max-w-sm rounded-2xl p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-6">Editar Perfil</h3>
+                
+                <div className="flex flex-col gap-4">
+                    {/* Avatar Preview & Edit */}
+                    <div className="flex flex-col items-center gap-3 mb-2">
+                        <img 
+                            src={avatarUrl || `https://ui-avatars.com/api/?name=${name || 'User'}&background=random`} 
+                            className="h-24 w-24 rounded-full object-cover ring-4 ring-slate-100 dark:ring-white/10"
+                            alt="Preview"
+                        />
+                        <div className="flex gap-2">
+                             <button 
+                                onClick={handleRandomizeAvatar}
+                                className="text-xs font-bold bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-white px-3 py-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-white/20"
+                            >
+                                Generar Avatar
+                            </button>
+                             <button 
+                                onClick={() => setAvatarUrl('')}
+                                className="text-xs font-bold bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-3 py-1.5 rounded-lg"
+                            >
+                                Eliminar
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Fields */}
+                    <div>
+                        <label className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1 block">Nombre</label>
+                        <input 
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-black/20 p-3 text-slate-900 dark:text-white focus:ring-2 focus:ring-slate-500/50 outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1 block">Email</label>
+                        <input 
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-black/20 p-3 text-slate-900 dark:text-white focus:ring-2 focus:ring-slate-500/50 outline-none"
+                            type="email"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1 block">URL de Imagen (Opcional)</label>
+                        <input 
+                            value={avatarUrl}
+                            onChange={(e) => setAvatarUrl(e.target.value)}
+                            placeholder="https://..."
+                            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-black/20 p-3 text-slate-900 dark:text-white focus:ring-2 focus:ring-slate-500/50 outline-none text-sm"
+                        />
+                    </div>
+                </div>
+
+                <div className="flex gap-3 mt-8">
+                    <button 
+                        onClick={onClose}
+                        className="flex-1 h-12 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-slate-600 dark:text-slate-300"
+                    >
+                        Cancelar
+                    </button>
+                    <button 
+                        onClick={() => {
+                            if(name && email) {
+                                onSave(name, email, avatarUrl);
+                                onClose();
+                            } else {
+                                alert("Nombre y Email requeridos");
+                            }
+                        }}
+                        className="flex-1 h-12 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold"
+                    >
+                        Guardar
+                    </button>
+                </div>
+             </div>
+        </div>
+    )
+}
+
+export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }) => {
   const navigate = useNavigate();
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [notifications, setNotifications] = useState({
       expiry: true,
       stock: false
@@ -18,8 +135,13 @@ export const Profile: React.FC<ProfileProps> = ({ onLogout }) => {
       setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleEditProfile = () => {
-      alert("Editar Perfil: Aquí se abriría un formulario para cambiar nombre/avatar.");
+  const handleSaveProfile = (name: string, email: string, avatarUrl: string) => {
+      onUpdateUser({
+          ...user,
+          name,
+          email,
+          avatarUrl
+      });
   };
 
   const handleChangePassword = () => {
@@ -44,13 +166,19 @@ export const Profile: React.FC<ProfileProps> = ({ onLogout }) => {
         <div className="flex-grow px-4 pb-24">
             {/* Profile Info */}
             <div className="flex pt-4 pb-6 flex-col items-center gap-4">
-                 <div className="bg-center bg-no-repeat bg-cover rounded-full h-32 w-32 shadow-xl ring-4 ring-white dark:ring-white/10" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuBPvFGoPvtrNCKL4PffxiXg_GCTuLG5Y_dAffAAgW1xF2DkTqH7t7SYcZeuVrVODhUbyz2_QpOu2XNlM6Z62hN8rZNrppCrGPtn7gkKNRrvMws5bzowGSVQBLQdgvek1wFCjHhyJyJF4OGXEkWn8pFHgANihPaYVE2nAWCoc10VOTK3gr6EIyA6GN95TJWmjRMOp1RyRTMHJEgoJAceR43NMCxM2AGmjllI6FhUHFBwOX3tRI0xyj2inW3soq0h66rWMAxubYgl47A")' }}></div>
+                 <div className="rounded-full h-32 w-32 shadow-xl ring-4 ring-white dark:ring-white/10 overflow-hidden bg-slate-100 dark:bg-surface-dark">
+                    <img 
+                        src={user.avatarUrl || `https://ui-avatars.com/api/?name=${user.name}&background=random`} 
+                        alt={user.name}
+                        className="h-full w-full object-cover"
+                    />
+                 </div>
                  <div className="flex flex-col items-center justify-center">
-                    <p className="text-slate-900 dark:text-white text-2xl font-bold">Ana García</p>
-                    <p className="text-slate-500 dark:text-slate-400 text-base">ana.garcia@email.com</p>
+                    <p className="text-slate-900 dark:text-white text-2xl font-bold">{user.name}</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-base">{user.email}</p>
                 </div>
                 <button 
-                    onClick={handleEditProfile}
+                    onClick={() => setIsEditOpen(true)}
                     className="flex items-center justify-center rounded-lg h-10 px-6 bg-slate-200 dark:bg-white/10 text-slate-800 dark:text-white text-sm font-bold mt-2 hover:bg-slate-300 dark:hover:bg-white/20 transition-colors"
                 >
                     Editar Perfil
@@ -157,6 +285,14 @@ export const Profile: React.FC<ProfileProps> = ({ onLogout }) => {
                 </button>
             </div>
         </div>
+        
+        <EditProfileModal 
+            isOpen={isEditOpen} 
+            onClose={() => setIsEditOpen(false)}
+            user={user}
+            onSave={handleSaveProfile}
+        />
+        
         <BottomNav />
     </div>
   );

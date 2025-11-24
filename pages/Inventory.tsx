@@ -12,6 +12,7 @@ interface InventoryProps {
   onAddCategory: (category: Category) => void;
   onUpdateCategory: (category: Category) => void;
   onDeleteCategory: (id: string) => void;
+  userRole?: 'owner' | 'editor' | 'viewer';
 }
 
 // --- Helpers ---
@@ -126,10 +127,12 @@ const ProductItem: React.FC<{
     onUpdate: (p: Product) => void;
     onDelete: (id: string) => void;
     onConsumeRequest: (p: Product) => void;
-}> = ({ product, onUpdate, onDelete, onConsumeRequest }) => {
+    isReadOnly: boolean;
+}> = ({ product, onUpdate, onDelete, onConsumeRequest, isReadOnly }) => {
   
   const handleDecrement = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isReadOnly) return;
     // If unit is measurable (not simple units), open modal
     const measurableUnits = ['g', 'ml', 'kg', 'L'];
     if (measurableUnits.includes(product.unit)) {
@@ -143,6 +146,7 @@ const ProductItem: React.FC<{
 
   const handleIncrement = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isReadOnly) return;
     let step = 1;
     if (product.unit === 'g' || product.unit === 'ml') step = 50; 
     if (product.unit === 'kg' || product.unit === 'L') step = 0.5;
@@ -152,6 +156,7 @@ const ProductItem: React.FC<{
 
   const handleDelete = (e: React.MouseEvent) => {
       e.stopPropagation();
+      if (isReadOnly) return;
       if(window.confirm('¿Eliminar este producto permanentemente?')) {
           onDelete(product.id);
       }
@@ -161,12 +166,14 @@ const ProductItem: React.FC<{
     <div className="group/item relative flex items-center gap-3 bg-white dark:bg-surface-dark px-3 min-h-[80px] py-3 rounded-xl shadow-sm border border-transparent dark:border-white/5 transition-colors overflow-hidden">
       
       {/* Delete Button (Visible on Hover/Focus or Swipe logic - simplified to absolute position) */}
-      <button 
-        onClick={handleDelete}
-        className="absolute right-2 top-2 text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 p-1 rounded-full z-10 opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity"
-      >
-        <span className="material-symbols-outlined text-lg">delete</span>
-      </button>
+      {!isReadOnly && (
+        <button 
+            onClick={handleDelete}
+            className="absolute right-2 top-2 text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 p-1 rounded-full z-10 opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity"
+        >
+            <span className="material-symbols-outlined text-lg">delete</span>
+        </button>
+      )}
 
       <div className={`flex items-center justify-center rounded-lg shrink-0 size-12 ${getStatusColorClass(product.status)}`}>
         <span className="material-symbols-outlined">{getStatusIcon(product.status)}</span>
@@ -182,7 +189,8 @@ const ProductItem: React.FC<{
       <div className="shrink-0 flex items-center bg-slate-50 dark:bg-black/20 rounded-lg p-1 gap-3 border border-slate-100 dark:border-white/5 mt-4 sm:mt-0">
         <button 
           onClick={handleDecrement}
-          className="size-8 flex items-center justify-center rounded-md bg-white dark:bg-surface-dark text-slate-600 dark:text-slate-300 shadow-sm active:scale-95 transition-transform"
+          disabled={isReadOnly}
+          className="size-8 flex items-center justify-center rounded-md bg-white dark:bg-surface-dark text-slate-600 dark:text-slate-300 shadow-sm active:scale-95 transition-transform disabled:opacity-50"
         >
           <span className="material-symbols-outlined text-lg">remove</span>
         </button>
@@ -194,7 +202,8 @@ const ProductItem: React.FC<{
 
         <button 
           onClick={handleIncrement}
-          className="size-8 flex items-center justify-center rounded-md bg-white dark:bg-surface-dark text-slate-600 dark:text-slate-300 shadow-sm active:scale-95 transition-transform"
+          disabled={isReadOnly}
+          className="size-8 flex items-center justify-center rounded-md bg-white dark:bg-surface-dark text-slate-600 dark:text-slate-300 shadow-sm active:scale-95 transition-transform disabled:opacity-50"
         >
           <span className="material-symbols-outlined text-lg">add</span>
         </button>
@@ -296,10 +305,11 @@ const CategoryModal: React.FC<{
 
 // --- Main Component ---
 export const Inventory: React.FC<InventoryProps> = ({ 
-    products, categories, onUpdateProduct, onDeleteProduct, onAddCategory, onUpdateCategory, onDeleteCategory 
+    products, categories, onUpdateProduct, onDeleteProduct, onAddCategory, onUpdateCategory, onDeleteCategory, userRole = 'owner' 
 }) => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
+  const isViewer = userRole === 'viewer';
   
   // Modal States
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
@@ -328,6 +338,7 @@ export const Inventory: React.FC<InventoryProps> = ({
   };
 
   const handleEditClick = (cat: Category) => {
+    if (isViewer) return;
     setEditingCategory(cat);
     setIsCatModalOpen(true);
   };
@@ -350,6 +361,10 @@ export const Inventory: React.FC<InventoryProps> = ({
   };
 
   const handleAddProductToCategory = (catId: string) => {
+      if (isViewer) {
+          alert("Solo editores pueden añadir productos.");
+          return;
+      }
       navigate('/add', { state: { categoryId: catId } });
   };
 
@@ -409,19 +424,23 @@ export const Inventory: React.FC<InventoryProps> = ({
                                 <h2 className="text-lg font-bold text-slate-800 dark:text-white">{cat.name}</h2>
                             </div>
                             <div className="flex items-center gap-1">
-                                <button
-                                    onClick={() => handleAddProductToCategory(cat.id)}
-                                    className="h-8 w-8 flex items-center justify-center rounded-full bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-white hover:bg-primary hover:text-white transition-colors"
-                                    title="Añadir producto a esta categoría"
-                                >
-                                    <span className="material-symbols-outlined text-lg">add</span>
-                                </button>
-                                <button 
-                                    onClick={() => handleEditClick(cat)}
-                                    className="h-8 w-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
-                                >
-                                    <span className="material-symbols-outlined text-lg">edit</span>
-                                </button>
+                                {!isViewer && (
+                                    <>
+                                        <button
+                                            onClick={() => handleAddProductToCategory(cat.id)}
+                                            className="h-8 w-8 flex items-center justify-center rounded-full bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-white hover:bg-primary hover:text-white transition-colors"
+                                            title="Añadir producto a esta categoría"
+                                        >
+                                            <span className="material-symbols-outlined text-lg">add</span>
+                                        </button>
+                                        <button 
+                                            onClick={() => handleEditClick(cat)}
+                                            className="h-8 w-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                                        >
+                                            <span className="material-symbols-outlined text-lg">edit</span>
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                         
@@ -435,18 +454,21 @@ export const Inventory: React.FC<InventoryProps> = ({
                                         onUpdate={onUpdateProduct} 
                                         onDelete={onDeleteProduct}
                                         onConsumeRequest={handleConsumeRequest}
+                                        isReadOnly={isViewer}
                                     />
                                 ))}
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center py-6 border-2 border-dashed border-slate-200 dark:border-white/5 rounded-xl text-slate-400">
                                 <p className="text-sm mb-2">Sin productos</p>
-                                <button 
-                                    onClick={() => handleAddProductToCategory(cat.id)}
-                                    className="text-xs font-bold text-primary dark:text-white bg-slate-100 dark:bg-white/10 px-3 py-1.5 rounded-lg"
-                                >
-                                    + Añadir aquí
-                                </button>
+                                {!isViewer && (
+                                    <button 
+                                        onClick={() => handleAddProductToCategory(cat.id)}
+                                        className="text-xs font-bold text-primary dark:text-white bg-slate-100 dark:bg-white/10 px-3 py-1.5 rounded-lg"
+                                    >
+                                        + Añadir aquí
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
@@ -462,13 +484,15 @@ export const Inventory: React.FC<InventoryProps> = ({
              )}
 
              {/* Add Category Button */}
-             <button 
-                onClick={handleAddCatClick}
-                className="w-full py-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-bold flex items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
-             >
-                <span className="material-symbols-outlined">add_circle</span>
-                Nueva Categoría Principal
-             </button>
+             {!isViewer && (
+                 <button 
+                    onClick={handleAddCatClick}
+                    className="w-full py-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-bold flex items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                 >
+                    <span className="material-symbols-outlined">add_circle</span>
+                    Nueva Categoría Principal
+                 </button>
+             )}
 
         </main>
 

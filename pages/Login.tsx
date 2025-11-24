@@ -1,18 +1,76 @@
+import React, { useEffect, useRef } from 'react';
 
-import React from 'react';
+// --- CONFIGURACIÓN DE GOOGLE ---
+// 1. Ve a Google Cloud Console > APIs & Services > Credentials
+// 2. Crea un OAuth Client ID para Web Application
+// 3. Añade http://localhost:5173 a "Authorized JavaScript origins"
+// 4. Pega el ID aquí abajo:
+const GOOGLE_CLIENT_ID = "1057933709700-rfe5949na0e4j7n63lf01f0tmsmscni4.apps.googleusercontent.com"; 
 
 interface LoginProps {
   onLogin: () => void;
+  onGoogleLogin: (credentialResponse: any) => void;
 }
 
-export const Login: React.FC<LoginProps> = ({ onLogin }) => {
+declare global {
+    interface Window {
+        google: any;
+    }
+}
+
+export const Login: React.FC<LoginProps> = ({ onLogin, onGoogleLogin }) => {
+  const btnRef = useRef<HTMLDivElement>(null);
   
+  useEffect(() => {
+    // Verificar si el script de Google ya cargó
+    const initializeGoogle = () => {
+        if (window.google && window.google.accounts && btnRef.current) {
+            try {
+                // Si el ID sigue siendo el placeholder, avisamos en consola pero no crasheamos
+                if (GOOGLE_CLIENT_ID.includes("PON_TU_CLIENT_ID")) {
+                    console.warn("Falta configurar el GOOGLE_CLIENT_ID en pages/Login.tsx");
+                    return;
+                }
+
+                window.google.accounts.id.initialize({
+                    client_id: GOOGLE_CLIENT_ID,
+                    callback: onGoogleLogin,
+                    auto_select: false, // Cambiar a true si quieres login automático
+                    cancel_on_tap_outside: true
+                });
+                
+                window.google.accounts.id.renderButton(
+                    btnRef.current,
+                    { 
+                        theme: "outline", 
+                        size: "large", 
+                        width: "100%", // Se ajustará al contenedor
+                        text: "continue_with",
+                        shape: "rectangular"
+                    } 
+                );
+                
+                // Opcional: Mostrar el One Tap dialog
+                // window.google.accounts.id.prompt();
+            } catch (e) {
+                console.error("Error inicializando Google Sign-In:", e);
+            }
+        }
+    };
+
+    // Si window.google no existe aún, podríamos esperar, pero normalmente el script async ya está en camino.
+    // Usamos un pequeño timeout para dar tiempo al script en redes lentas o race conditions en dev
+    const timer = setTimeout(initializeGoogle, 500);
+    return () => clearTimeout(timer);
+
+  }, [onGoogleLogin]);
+
   const handleForgotPassword = () => {
     alert("Se ha enviado un enlace de recuperación a tu correo.");
   };
 
   const handleCreateAccount = () => {
-    alert("Funcionalidad de registro: Aquí iría el formulario de registro.");
+    alert("Funcionalidad de registro: Aquí iría el formulario de registro manual.");
   };
 
   return (
@@ -29,6 +87,25 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </div>
 
         <div className="flex w-full flex-col items-center gap-4">
+          
+          {/* Google Sign In Container */}
+          <div className="w-full h-[44px] flex justify-center">
+             <div ref={btnRef} className="w-full flex justify-center"></div>
+          </div>
+          
+          {GOOGLE_CLIENT_ID.includes("PON_TU_CLIENT_ID") && (
+             <div className="p-3 bg-amber-100 border border-amber-300 rounded-lg text-xs text-amber-800 text-center w-full">
+                 ⚠️ <strong>Configuración requerida:</strong><br/>
+                 Abre <code>pages/Login.tsx</code> y pega tu <code>GOOGLE_CLIENT_ID</code>.
+             </div>
+          )}
+
+          <div className="flex w-full items-center gap-4 my-2">
+            <hr className="flex-1 border-slate-200 dark:border-slate-700" />
+            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium leading-normal">o acceso manual</p>
+            <hr className="flex-1 border-slate-200 dark:border-slate-700" />
+          </div>
+
           {/* Email Field */}
           <div className="flex w-full flex-col items-start gap-1.5">
             <label className="text-slate-900 dark:text-white text-sm font-medium leading-normal" htmlFor="email">Correo Electrónico</label>
@@ -59,31 +136,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             className="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-5 bg-slate-900 dark:bg-white text-white dark:text-black text-base font-bold leading-normal mt-2 shadow-sm hover:opacity-90 active:scale-[0.98] transition-all"
           >
             Iniciar Sesión
-          </button>
-        </div>
-
-        {/* Divider */}
-        <div className="flex w-full items-center gap-4">
-          <hr className="flex-1 border-slate-200 dark:border-slate-700" />
-          <p className="text-slate-500 dark:text-slate-400 text-sm font-medium leading-normal">o continúa con</p>
-          <hr className="flex-1 border-slate-200 dark:border-slate-700" />
-        </div>
-
-        {/* Social Login */}
-        <div className="flex w-full flex-col gap-4">
-          <button 
-            onClick={onLogin}
-            className="flex w-full items-center justify-center gap-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-surface-dark h-12 px-5 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
-          >
-            <img alt="Google logo" className="h-6 w-6" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAYwHqIf15zB6IQcC-IzgVSWJQfaG6b09znkiirN1UlwfspCcjJ2VF6woSKSY0ZejPAx9ZGWnC7dA9-0PQ-NFPC50gZk5nefBt7KV2JsfQhp69voblCThp-DVJyVpwIHzNPLLgy5YzD6WZFqm6wbzu0UnmXcZjMZKMGLCudHd-FYuqTx3ZiXnu-HMLPganXTdJ_VYwqqCb8gHx119Mn11qMSg6Z2NL12-JidN7Nyn5_fgKuCBftSzF2DwUbrylHcPJ9WIqSJFYxPc0" />
-            <span className="text-slate-800 dark:text-white text-base font-medium">Continuar con Google</span>
-          </button>
-          <button 
-            onClick={onLogin}
-            className="flex w-full items-center justify-center gap-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-surface-dark h-12 px-5 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
-          >
-             <svg className="h-6 w-6 text-slate-900 dark:text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M14.509 0c-2.834 0-4.333.155-5.946.471-1.42.28-2.693 1.01-3.693 2.131-.96 1.077-1.528 2.3-1.848 3.65-2.613 11.235 5.51 17.748 5.51 17.748.006-.005 1.503 1.48 3.515 1.48s2.72-.85 3.99-2.071c1.23-1.18 1.95-2.901 1.95-2.901s-2.016-1.18-2.016-3.417c0-2.348 2.28-3.321 2.28-3.321s-3.264-1.25-3.264-4.885c0-2.81 1.74-4.444 3.93-4.5.3-1.528.1-3.056-1.1-4.223-1.21-1.17-2.73-1.84-4.38-1.84zM12.01 5.925c.01 2.375 1.77 4.39 3.98 4.41.13 0 .26-.01.38-.02-2.12-.13-3.79-2.05-4.36-4.39z"></path></svg>
-            <span className="text-slate-800 dark:text-white text-base font-medium">Continuar con Apple</span>
           </button>
         </div>
 

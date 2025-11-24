@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Product, Category } from '../types';
 import { BottomNav } from '../components/BottomNav';
 
@@ -7,15 +7,128 @@ interface ShoppingListProps {
   products: Product[];
   categories: Category[];
   onUpdateProduct: (product: Product) => void;
+  userRole?: 'owner' | 'editor' | 'viewer';
 }
 
-export const ShoppingList: React.FC<ShoppingListProps> = ({ products, categories, onUpdateProduct }) => {
+// --- Restock Modal ---
+interface RestockModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: (amount: number, unit: string) => void;
+    productName: string;
+    currentUnit: string;
+}
+
+const RestockModal: React.FC<RestockModalProps> = ({ isOpen, onClose, onConfirm, productName, currentUnit }) => {
+    const [amount, setAmount] = useState('1');
+    const [unit, setUnit] = useState(currentUnit);
+
+    // Reset unit when modal opens/product changes
+    React.useEffect(() => {
+        if(isOpen) {
+            setUnit(currentUnit);
+            setAmount('1');
+        }
+    }, [isOpen, currentUnit]);
+
+    if (!isOpen) return null;
+
+    const handleSubmit = () => {
+        const val = parseFloat(amount);
+        if (val > 0) {
+            onConfirm(val, unit);
+            onClose();
+        } else {
+            alert("Por favor ingresa una cantidad válida");
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-white dark:bg-[#1e1e1e] w-full max-w-sm rounded-2xl p-6 shadow-2xl">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Reponer Producto</h3>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
+                    ¿Qué cantidad de <b>{productName}</b> vas a reponer?
+                </p>
+                
+                <div className="flex gap-2 mb-6">
+                    <div className="relative flex-1">
+                        <input 
+                            type="number" 
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-black/20 p-4 text-2xl font-bold text-center text-slate-900 dark:text-white focus:ring-2 focus:ring-slate-500/50 outline-none"
+                            placeholder="0"
+                            min="0.1"
+                            step="any"
+                            autoFocus
+                        />
+                    </div>
+                    <div className="relative w-1/3">
+                         <select 
+                            value={unit}
+                            onChange={(e) => setUnit(e.target.value)}
+                            className="w-full h-full appearance-none rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-black/20 px-3 text-center font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-slate-500/50 outline-none"
+                        >
+                            <option value="unidades">Uds</option>
+                            <option value="kg">kg</option>
+                            <option value="g">g</option>
+                            <option value="L">L</option>
+                            <option value="ml">ml</option>
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+                             <span className="material-symbols-outlined text-sm">expand_more</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex gap-3">
+                    <button 
+                        onClick={onClose}
+                        className="flex-1 h-12 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-slate-600 dark:text-slate-300"
+                    >
+                        Cancelar
+                    </button>
+                    <button 
+                        onClick={handleSubmit}
+                        disabled={!amount}
+                        className="flex-1 h-12 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold disabled:opacity-50"
+                    >
+                        Confirmar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export const ShoppingList: React.FC<ShoppingListProps> = ({ products, categories, onUpdateProduct, userRole = 'owner' }) => {
   // Filter products that are out of stock (quantity 0)
   const shoppingItems = products.filter(p => p.quantity === 0);
+  const isViewer = userRole === 'viewer';
 
-  const handleRestock = (product: Product) => {
-    // Restock 1 unit by default to move it back to inventory
-    onUpdateProduct({ ...product, quantity: 1, status: 'ok' });
+  // Modal State
+  const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  const handleRestockClick = (product: Product) => {
+      if (isViewer) {
+          alert("Solo los editores pueden reponer productos.");
+          return;
+      }
+      setSelectedProduct(product);
+      setIsRestockModalOpen(true);
+  };
+
+  const handleConfirmRestock = (amount: number, unit: string) => {
+      if (selectedProduct) {
+          onUpdateProduct({ 
+              ...selectedProduct, 
+              quantity: amount,
+              unit: unit,
+              status: 'ok' 
+          });
+      }
   };
 
   const getCategoryName = (id: string) => {
@@ -49,8 +162,8 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({ products, categories
               <div key={item.id} className="group flex items-center gap-4 bg-white dark:bg-surface-dark px-4 py-3 rounded-xl shadow-sm border border-transparent dark:border-white/5 transition-all">
                 {/* Checkbox / Restock Button */}
                 <button 
-                  onClick={() => handleRestock(item)}
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-slate-200 dark:border-slate-600 text-transparent hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 transition-all"
+                  onClick={() => handleRestockClick(item)}
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-slate-200 dark:border-slate-600 text-transparent transition-all ${!isViewer ? 'hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600' : 'opacity-50 cursor-not-allowed'}`}
                 >
                   <span className="material-symbols-outlined">check</span>
                 </button>
@@ -66,8 +179,8 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({ products, categories
 
                 <div className="shrink-0 flex flex-col items-end">
                    <button 
-                    onClick={() => handleRestock(item)}
-                    className="text-slate-900 dark:text-white font-bold text-sm bg-slate-100 dark:bg-white/10 px-3 py-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-white/20 transition-colors"
+                    onClick={() => handleRestockClick(item)}
+                    className={`text-slate-900 dark:text-white font-bold text-sm bg-slate-100 dark:bg-white/10 px-3 py-1.5 rounded-lg transition-colors ${!isViewer ? 'hover:bg-slate-200 dark:hover:bg-white/20' : 'opacity-50'}`}
                    >
                       Reponer
                    </button>
@@ -87,6 +200,14 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({ products, categories
           </div>
         )}
       </main>
+
+      <RestockModal 
+        isOpen={isRestockModalOpen}
+        onClose={() => setIsRestockModalOpen(false)}
+        onConfirm={handleConfirmRestock}
+        productName={selectedProduct?.name || ''}
+        currentUnit={selectedProduct?.unit || 'unidades'}
+      />
 
       <BottomNav />
     </div>
