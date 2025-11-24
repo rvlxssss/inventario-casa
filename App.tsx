@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { io, Socket } from 'socket.io-client';
 import { Login } from './pages/Login';
 import { Inventory } from './pages/Inventory';
 import { AddProduct } from './pages/AddProduct';
@@ -110,12 +111,18 @@ const App: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>(() => loadState('categories', INITIAL_CATEGORIES));
   const [members, setMembers] = useState<User[]>(() => loadState('members', INITIAL_MEMBERS));
   
+  // Sync State
+  const [serverUrl, setServerUrl] = useState<string>(() => loadState('serverUrl', 'http://localhost:3001'));
+  const [syncCode, setSyncCode] = useState<string | null>(() => loadState('syncCode', null));
+  const [isConnected, setIsConnected] = useState(false);
+  const socketRef = useRef<Socket | null>(null);
+  
+  // Ref to prevent infinite loops (Server update -> State Change -> Emit -> Server update...)
+  const shouldEmit = useRef(true);
+
   // Auth State
   const [loggedUserId, setLoggedUserId] = useState<string | null>(() => {
       const savedId = loadState<string | null>('loggedUserId', null);
-      // Validar si el ID guardado realmente existe en miembros
-      // Si no existe, es mejor forzar logout para evitar estados inconsistentes
-      // PERO, como members se carga de localStorage también, deberíamos comprobarlo
       return savedId;
   });
 
@@ -126,6 +133,12 @@ const App: React.FC = () => {
   useEffect(() => { localStorage.setItem('products', JSON.stringify(products)); }, [products]);
   useEffect(() => { localStorage.setItem('categories', JSON.stringify(categories)); }, [categories]);
   useEffect(() => { localStorage.setItem('members', JSON.stringify(members)); }, [members]);
+  useEffect(() => { localStorage.setItem('serverUrl', JSON.stringify(serverUrl)); }, [serverUrl]);
+
+  useEffect(() => { 
+      if(syncCode) localStorage.setItem('syncCode', JSON.stringify(syncCode)); 
+      else localStorage.removeItem('syncCode');
+  }, [syncCode]);
   
   // Persist User Session
   useEffect(() => { 
@@ -135,6 +148,91 @@ const App: React.FC = () => {
           localStorage.removeItem('loggedUserId');
       }
   }, [loggedUserId]);
+
+  // --- SOCKET.IO CONNECTION ---
+  useEffect(() => {
+    // If no server URL is provided, don't try to connect
+    if (!serverUrl) return;
+
+    console.log("Connecting to:", serverUrl);
+
+    // Init socket
+    const socket = io(serverUrl, {
+        transports: ['websocket', 'polling'], // Fallback options
+        autoConnect: true,
+        reconnectionAttempts: 5
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+        console.log("Connected to backend", socket.id);
+        setIsConnected(true);
+        // If we already have a sync code saved, rejoin the session
+        if (syncCode) {
+            console.log("Rejoining session:", syncCode);
+            socket.emit('join_session', { code: syncCode, user: currentUser || { name: 'Unknown' } });
+        }
+    });
+
+    socket.on('connect_error', (err) => {
+        console.warn("Connection error:", err.message);
+        setIsConnected(false);
+    });
+
+    socket.on('disconnect', () => {
+        console.log("Disconnected from backend");
+        setIsConnected(false);
+    });
+
+    // Handle Incoming Data
+    socket.on('sync_initial_data', (data) => {
+        console.log("Initial data received:", data);
+        shouldEmit.current = false;
+        if (data.products) setProducts(data.products);
+        if (data.categories) setCategories(data.categories);
+        if (data.members) setMembers(data.members);
+        // Re-enable emitting after state settles (next tick)
+        setTimeout(() => { shouldEmit.current = true; }, 100);
+    });
+
+    socket.on('data_updated', ({ type, data }) => {
+        console.log("Remote update received:", type);
+        shouldEmit.current = false; // Don't echo this back
+        if (type === 'products') setProducts(data);
+        if (type === 'categories') setCategories(data);
+        if (type === 'members') setMembers(data);
+        setTimeout(() => { shouldEmit.current = true; }, 100);
+    });
+
+    return () => {
+        socket.disconnect();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverUrl]); // Re-connect if URL changes
+
+  // --- SYNC EMITTERS ---
+  // When local state changes, send to server IF it's a local change
+  useEffect(() => {
+      if (isConnected && syncCode && shouldEmit.current) {
+          const roomId = `room_${syncCode}`;
+          socketRef.current?.emit('update_data', { roomId, type: 'products', data: products });
+      }
+  }, [products, isConnected, syncCode]);
+
+  useEffect(() => {
+      if (isConnected && syncCode && shouldEmit.current) {
+          const roomId = `room_${syncCode}`;
+          socketRef.current?.emit('update_data', { roomId, type: 'categories', data: categories });
+      }
+  }, [categories, isConnected, syncCode]);
+  
+  useEffect(() => {
+      if (isConnected && syncCode && shouldEmit.current) {
+          const roomId = `room_${syncCode}`;
+          socketRef.current?.emit('update_data', { roomId, type: 'members', data: members });
+      }
+  }, [members, isConnected, syncCode]);
+
 
   // Check for invite link on load
   useEffect(() => {
@@ -151,8 +249,6 @@ const App: React.FC = () => {
       return members.find(m => m.id === loggedUserId) || null;
   }, [members, loggedUserId]);
 
-  // Si tenemos loggedUserId pero no currentUser, significa que los datos se desincronizaron.
-  // Podríamos limpiar la sesión aquí.
   useEffect(() => {
       if (loggedUserId && !currentUser && members.length > 0) {
           console.warn("User ID in session not found in members list. Logging out.");
@@ -170,19 +266,16 @@ const App: React.FC = () => {
           email: `${name.toLowerCase().replace(/\s+/g, '.')}@demo.com`,
           avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
           role: 'editor',
-          isCurrentUser: true // Flag mostly for initial setup
+          isCurrentUser: true
       };
 
       setMembers(prev => [...prev.map(m => ({ ...m, isCurrentUser: false })), newUser]);
       setLoggedUserId(newUserId);
       setPendingInvite(false);
-      
-      // Clean URL
       window.history.replaceState({}, document.title, window.location.pathname);
   };
 
   const handleManualLogin = () => {
-    // For manual demo login, just use the first user or create a demo one
     if (members.length > 0) {
         setLoggedUserId(members[0].id);
     } else {
@@ -202,38 +295,28 @@ const App: React.FC = () => {
   const handleGoogleLogin = (credentialResponse: any) => {
       const token = credentialResponse.credential;
       const decoded = decodeJwt(token);
-
       console.log("Google Login Payload:", decoded);
 
       if (decoded) {
-          // Usamos 'sub' como ID único de Google, pero también buscamos por email por si acaso
-          // para no duplicar usuarios si ya fueron invitados por email.
           const existingUser = members.find(m => m.email === decoded.email || m.id === decoded.sub);
 
           if (existingUser) {
-              console.log("User exists, logging in:", existingUser.name);
-              // Log in existing user
               setLoggedUserId(existingUser.id);
-              
-              // Actualizar datos de Google si han cambiado (foto, nombre)
               const needsUpdate = existingUser.avatarUrl !== decoded.picture || existingUser.name !== decoded.name;
-              
               if (needsUpdate) {
                   setMembers(prev => prev.map(m => m.id === existingUser.id ? { 
                       ...m, 
-                      name: decoded.name, // Opcional: mantener nombre local si se prefiere
+                      name: decoded.name, 
                       avatarUrl: decoded.picture 
                   } : m));
               }
           } else {
-              console.log("New user, creating account:", decoded.name);
-              // Register new user from Google
               const newUser: User = {
-                  id: decoded.sub, // Use Google ID as stable ID
+                  id: decoded.sub, 
                   name: decoded.name,
                   email: decoded.email,
                   avatarUrl: decoded.picture,
-                  role: 'owner', // Default role for new sign-ups. En app real, esto sería 'viewer' si no es el creador del grupo.
+                  role: 'owner', 
                   isCurrentUser: true
               };
               setMembers(prev => [...prev, newUser]);
@@ -245,10 +328,80 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setLoggedUserId(null);
     localStorage.removeItem('loggedUserId');
-    // Si usáramos google.accounts.id.disableAutoSelect() aquí, prevendría el login automático en la sig visita
     if (window.google && window.google.accounts) {
         window.google.accounts.id.disableAutoSelect();
     }
+  };
+
+  // --- SYNC HANDLERS ---
+  const handleGenerateCode = async (): Promise<string> => {
+      return new Promise((resolve) => {
+          if (!socketRef.current || !isConnected) {
+              alert("No hay conexión con el servidor. Verifica la URL del servidor en 'Gestionar Acceso'.");
+              resolve('');
+              return;
+          }
+
+          // Emit create session
+          socketRef.current.emit('create_session', {
+              products,
+              categories,
+              members
+          });
+
+          // Listen for the code response (one-time listener)
+          socketRef.current.once('session_created', ({ code }) => {
+              setSyncCode(code); // Save locally so we stay connected to this session
+              resolve(code);
+          });
+      });
+  };
+
+  const handleLinkDevice = async (code: string) => {
+      if (!socketRef.current || !isConnected) {
+          alert("No hay conexión con el servidor. Verifica la URL del servidor en 'Gestionar Acceso'.");
+          return false;
+      }
+
+      return new Promise<boolean>((resolve) => {
+          // Join existing session
+          socketRef.current?.emit('join_session', { 
+              code, 
+              user: currentUser || { name: 'New Device', id: 'dev' } 
+          });
+
+          // We wait for initial data as confirmation, or an error
+          const onData = () => {
+              setSyncCode(code);
+              cleanup();
+              resolve(true);
+          };
+          
+          const onError = (err: any) => {
+              alert(err.message || "Error al vincular");
+              cleanup();
+              resolve(false);
+          };
+
+          const cleanup = () => {
+              socketRef.current?.off('sync_initial_data', onData);
+              socketRef.current?.off('error', onError);
+          };
+
+          socketRef.current?.once('sync_initial_data', onData);
+          socketRef.current?.once('error', onError);
+          
+          // Timeout fallback
+          setTimeout(() => {
+              cleanup();
+              resolve(false); 
+          }, 5000);
+      });
+  };
+
+  const handleUpdateServerUrl = (url: string) => {
+      setServerUrl(url);
+      setSyncCode(null); // Reset sync when server changes
   };
 
   // Product Handlers
@@ -299,6 +452,18 @@ const App: React.FC = () => {
     <Router>
       <div className="bg-background-light dark:bg-background-dark min-h-screen text-slate-900 dark:text-white font-display">
         
+        {/* Connection Status Indicator */}
+        {!isConnected && isAuthenticated && (
+            <div className="bg-amber-500 text-white text-xs text-center p-1 cursor-pointer" onClick={() => window.location.hash = "#/access"}>
+                Sin conexión de sincronización (Click para configurar). Modo offline.
+            </div>
+        )}
+        {isConnected && isAuthenticated && syncCode && (
+             <div className="bg-green-600 text-white text-[10px] text-center p-0.5">
+                Sincronizado
+            </div>
+        )}
+
         <JoinInviteModal 
             isOpen={pendingInvite} 
             onJoin={handleJoinTeam} 
@@ -363,6 +528,12 @@ const App: React.FC = () => {
                 <ManageAccess 
                     members={members} 
                     onUpdateMembers={updateMembers} 
+                    onLinkDevice={handleLinkDevice}
+                    onGenerateCode={handleGenerateCode}
+                    currentSyncCode={syncCode}
+                    serverUrl={serverUrl}
+                    onUpdateServerUrl={handleUpdateServerUrl}
+                    isConnected={isConnected}
                 /> : <Navigate to="/" />} 
             />
         </Routes>
