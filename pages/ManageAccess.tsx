@@ -421,11 +421,11 @@ export const ManageAccess: React.FC<ManageAccessProps> = ({
 
         <div className="space-y-3">
             {members.map(member => (
-                <div key={member.id} className="bg-white dark:bg-surface-dark p-4 rounded-xl shadow-sm flex items-center gap-4">
-                     <div className="relative">
+                <div key={member.id} className="bg-white dark:bg-surface-dark p-4 rounded-xl shadow-sm flex items-center gap-3 sm:gap-4 overflow-hidden">
+                     <div className="relative shrink-0">
                         <img 
                             src={member.avatarUrl || `https://ui-avatars.com/api/?name=${member.name}`} 
-                            className="h-12 w-12 rounded-full object-cover bg-slate-100"
+                            className="h-10 w-10 sm:h-12 sm:w-12 rounded-full object-cover bg-slate-100"
                             alt={member.name}
                         />
                         {member.role === 'owner' && (
@@ -435,16 +435,16 @@ export const ManageAccess: React.FC<ManageAccessProps> = ({
                         )}
                      </div>
                      
-                     <div className="flex-1">
+                     <div className="flex-1 min-w-0">
                          <div className="flex items-center gap-2">
-                            <p className="text-slate-900 dark:text-white font-bold">{member.name}</p>
-                            {member.isCurrentUser && <span className="text-[10px] bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded text-slate-500">Tú</span>}
+                            <p className="text-slate-900 dark:text-white font-bold truncate">{member.name}</p>
+                            {member.isCurrentUser && <span className="text-[10px] bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded text-slate-500 shrink-0">Tú</span>}
                          </div>
-                         <p className="text-slate-500 dark:text-slate-400 text-xs">{member.email}</p>
+                         <p className="text-slate-500 dark:text-slate-400 text-xs truncate">{member.email}</p>
                      </div>
 
-                     <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-slate-400 capitalize bg-slate-50 dark:bg-white/5 px-2 py-1 rounded-lg border border-slate-100 dark:border-white/5">
+                     <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs font-medium text-slate-400 capitalize bg-slate-50 dark:bg-white/5 px-2 py-1 rounded-lg border border-slate-100 dark:border-white/5 hidden sm:inline-block">
                             {member.role === 'owner' ? 'Admin' : member.role === 'editor' ? 'Editor' : 'Lector'}
                         </span>
                         {!member.isCurrentUser && (

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Product, Category } from '../types';
@@ -165,28 +164,31 @@ const ProductItem: React.FC<{
   return (
     <div className="group/item relative flex items-center gap-3 bg-white dark:bg-surface-dark px-3 min-h-[80px] py-3 rounded-xl shadow-sm border border-transparent dark:border-white/5 transition-colors overflow-hidden">
       
-      {/* Delete Button (Visible on Hover/Focus or Swipe logic - simplified to absolute position) */}
-      {!isReadOnly && (
-        <button 
-            onClick={handleDelete}
-            className="absolute right-2 top-2 text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 p-1 rounded-full z-10 opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity"
-        >
-            <span className="material-symbols-outlined text-lg">delete</span>
-        </button>
-      )}
-
+      {/* Icon */}
       <div className={`flex items-center justify-center rounded-lg shrink-0 size-12 ${getStatusColorClass(product.status)}`}>
         <span className="material-symbols-outlined">{getStatusIcon(product.status)}</span>
       </div>
       
-      <div className="flex flex-col justify-center flex-1 min-w-0 mr-2">
-        <p className="text-slate-800 dark:text-white text-base font-bold leading-tight truncate pr-6">{product.name}</p>
+      {/* Text Info - Added pr-10 to prevent overlap with absolute delete button */}
+      <div className="flex flex-col justify-center flex-1 min-w-0 mr-1 pr-10 sm:pr-0">
+        <p className="text-slate-800 dark:text-white text-base font-bold leading-tight truncate">{product.name}</p>
         <p className={`text-xs mt-1 truncate ${getStatusTextClass(product.status)}`}>
           {getStatusMessage(product)}
         </p>
       </div>
 
-      <div className="shrink-0 flex items-center bg-slate-50 dark:bg-black/20 rounded-lg p-1 gap-3 border border-slate-100 dark:border-white/5 mt-4 sm:mt-0">
+      {/* Delete Button (Absolute for small footprint) - Increased touch target */}
+      {!isReadOnly && (
+        <button 
+            onClick={handleDelete}
+            className="absolute right-0 top-0 p-3 text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 z-10"
+        >
+            <span className="material-symbols-outlined text-xl">delete</span>
+        </button>
+      )}
+
+      {/* Controls */}
+      <div className="shrink-0 flex items-center bg-slate-50 dark:bg-black/20 rounded-lg p-1 gap-1 sm:gap-3 border border-slate-100 dark:border-white/5 mt-auto">
         <button 
           onClick={handleDecrement}
           disabled={isReadOnly}
@@ -195,8 +197,8 @@ const ProductItem: React.FC<{
           <span className="material-symbols-outlined text-lg">remove</span>
         </button>
         
-        <div className="flex flex-col items-center w-12 text-center">
-            <span className="text-slate-800 dark:text-white text-base font-bold leading-none">{Number(product.quantity).toLocaleString()}</span>
+        <div className="flex flex-col items-center min-w-[3rem] text-center">
+            <span className="text-slate-800 dark:text-white text-sm sm:text-base font-bold leading-none">{Number(product.quantity).toLocaleString()}</span>
             <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium leading-none mt-0.5">{product.unit}</span>
         </div>
 

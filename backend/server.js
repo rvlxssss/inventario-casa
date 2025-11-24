@@ -7,19 +7,19 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 app.use(cors());
 
 // Health Check for Render
-// Render needs to receive a 200 OK response to know the service is live.
 app.get('/', (req, res) => {
   res.send('PantryPal Sync Server is Running');
 });
 
 const server = http.createServer(app);
 
-// Initialize Socket.io with CORS enabled for all origins (for development)
 const io = new Server(server, {
   cors: {
     origin: "*", 
@@ -27,10 +27,39 @@ const io = new Server(server, {
   }
 });
 
-// In-memory storage for demo purposes
-// In a real app, use Redis or a Database (MongoDB/Postgres)
-// Note: On Render free tier, this memory resets if the server "sleeps" due to inactivity.
-const activeSessions = new Map(); // code -> { roomId, products, categories, members }
+// --- PERSISTENCE LAYER ---
+const DB_FILE = path.join(__dirname, 'database.json');
+
+// In-memory storage
+let activeSessions = new Map(); // code -> { roomId, products, categories, members }
+
+// Load from file on start
+const loadDatabase = () => {
+    try {
+        if (fs.existsSync(DB_FILE)) {
+            const raw = fs.readFileSync(DB_FILE, 'utf8');
+            const data = JSON.parse(raw);
+            // Convert Object to Map
+            activeSessions = new Map(Object.entries(data));
+            console.log(`Database loaded. ${activeSessions.size} active sessions.`);
+        }
+    } catch (e) {
+        console.error("Error loading database:", e);
+    }
+};
+
+// Save to file on change
+const saveDatabase = () => {
+    try {
+        // Convert Map to Object
+        const data = Object.fromEntries(activeSessions);
+        fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+    } catch (e) {
+        console.error("Error saving database:", e);
+    }
+};
+
+loadDatabase();
 
 io.on('connection', (socket) => {
   console.log('New client connected:', socket.id);
@@ -46,6 +75,7 @@ io.on('connection', (socket) => {
       roomId,
       ...initialData
     });
+    saveDatabase();
 
     socket.join(roomId);
     socket.emit('session_created', { code });
@@ -54,12 +84,16 @@ io.on('connection', (socket) => {
 
   // 2. Join a Session (Target Device)
   socket.on('join_session', ({ code, user }) => {
+    if (!code) return;
     const formattedCode = code.toUpperCase();
     const session = activeSessions.get(formattedCode);
 
     if (session) {
       socket.join(session.roomId);
       
+      // ACK to the user that they joined successfully
+      socket.emit('session_joined', { code: formattedCode });
+
       // Send current data to the new device
       socket.emit('sync_initial_data', {
         products: session.products,
@@ -67,32 +101,39 @@ io.on('connection', (socket) => {
         members: session.members
       });
 
-      // Notify others in room
-      io.to(session.roomId).emit('member_joined', user);
-      console.log(`User ${user.name} joined room ${session.roomId}`);
+      console.log(`Socket ${socket.id} joined room ${session.roomId}`);
     } else {
-      socket.emit('error', { message: 'Invalid or expired code' });
+      socket.emit('error', { message: 'Código inválido o expirado' });
     }
   });
 
   // 3. Sync Updates (Bi-directional)
   socket.on('update_data', ({ roomId, type, data }) => {
     // Broadcast changes to everyone else in the room
-    // type can be 'products', 'categories', 'members'
     socket.to(roomId).emit('data_updated', { type, data });
     
-    // Update server state (naive implementation)
-    // Find session by roomId (inefficient for demo, better to store mapping)
-    for (let session of activeSessions.values()) {
-        if (session.roomId === roomId) {
-            session[type] = data;
+    // Update server state persistence
+    // Find session by roomId
+    let foundCode = null;
+    let foundSession = null;
+
+    for (let [c, s] of activeSessions.entries()) {
+        if (s.roomId === roomId) {
+            foundCode = c;
+            foundSession = s;
             break;
         }
+    }
+
+    if (foundCode && foundSession) {
+        foundSession[type] = data;
+        activeSessions.set(foundCode, foundSession);
+        saveDatabase();
     }
   });
 
   socket.on('disconnect', () => {
-    console.log('Client disconnected', socket.id);
+    // console.log('Client disconnected', socket.id);
   });
 });
 

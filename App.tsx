@@ -17,20 +17,13 @@ const INITIAL_CATEGORIES: Category[] = [
     { id: 'cat_pets', name: 'Mascotas', icon: 'pets' },
 ];
 
-// Mock initial data linked to category IDs
+// Mock initial data
 const INITIAL_PRODUCTS: Product[] = [
   { id: '1', name: 'Yogurt Griego', quantity: 3, unit: 'unidades', expiryDate: '2023-10-25', categoryId: 'cat_food', status: 'expired' },
   { id: '2', name: 'Leche Entera', quantity: 2, unit: 'unidades', expiryDate: '2023-10-28', categoryId: 'cat_food', status: 'warning' },
-  { id: '3', name: 'Huevos', quantity: 12, unit: 'unidades', expiryDate: '2023-11-10', categoryId: 'cat_food', status: 'ok' },
-  { id: '4', name: 'Arroz', quantity: 1000, unit: 'g', expiryDate: '2024-06-01', categoryId: 'cat_food', status: 'ok' },
-  { id: '5', name: 'Detergente', quantity: 1, unit: 'L', expiryDate: '', categoryId: 'cat_cleaning', status: 'ok' },
-  { id: '6', name: 'Limpiador Multiuso', quantity: 750, unit: 'ml', expiryDate: '', categoryId: 'cat_cleaning', status: 'ok' },
 ];
 
-const INITIAL_MEMBERS: User[] = [
-    { id: '1', name: 'Ana García', email: 'ana.garcia@email.com', avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBPvFGoPvtrNCKL4PffxiXg_GCTuLG5Y_dAffAAgW1xF2DkTqH7t7SYcZeuVrVODhUbyz2_QpOu2XNlM6Z62hN8rZNrppCrGPtn7gkKNRrvMws5bzowGSVQBLQdgvek1wFCjHhyJyJF4OGXEkWn8pFHgANihPaYVE2nAWCoc10VOTK3gr6EIyA6GN95TJWmjRMOp1RyRTMHJEgoJAceR43NMCxM2AGmjllI6FhUHFBwOX3tRI0xyj2inW3soq0h66rWMAxubYgl47A', role: 'owner', isCurrentUser: true },
-    { id: '2', name: 'Ana Gómez', email: 'ana.gomez@email.com', avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDLNA3YZOo9mbFhzDJkLsgSzsYpVuPOzvFpYnEEoEwE69N76rYiMcFXllwRHIK7JANcAFumOCEIXgQPdDFjsOkAttniX5er7ZVINowYSqy01Vy_g8cLqfMz-tltajfkAkVN48jripHGh_GxFrxufiXE2xCCYl8G58zVz1eMFc6D_dwNgHv502bhG4DS3T5_SXhRxsBoGvKngaF5NwekYADaH2maYp6Lc80o2-zF55QKeK3O_n_mce9ulVetIc6hyn9DyYvSE7lFoEs', role: 'editor' },
-];
+const INITIAL_MEMBERS: User[] = [];
 
 // Helper to load from local storage
 const loadState = <T,>(key: string, fallback: T): T => {
@@ -43,7 +36,7 @@ const loadState = <T,>(key: string, fallback: T): T => {
   }
 };
 
-// Helper to decode JWT correctly handling UTF-8 characters
+// Helper to decode JWT
 const decodeJwt = (token: string) => {
     try {
         const base64Url = token.split('.')[1];
@@ -58,7 +51,6 @@ const decodeJwt = (token: string) => {
     }
 };
 
-// --- Invite Modal Component ---
 const JoinInviteModal: React.FC<{
     isOpen: boolean;
     onJoin: (name: string) => void;
@@ -117,13 +109,15 @@ const App: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   
-  // Ref to prevent infinite loops (Server update -> State Change -> Emit -> Server update...)
+  // Refs for State in Events
+  // We use refs so socket callbacks can access the LATEST state without needing to re-bind the listener
+  const syncCodeRef = useRef(syncCode);
+  const userRef = useRef<User | null>(null); 
   const shouldEmit = useRef(true);
 
   // Auth State
   const [loggedUserId, setLoggedUserId] = useState<string | null>(() => {
-      const savedId = loadState<string | null>('loggedUserId', null);
-      return savedId;
+      return loadState<string | null>('loggedUserId', null);
   });
 
   // Invite Logic State
@@ -138,27 +132,33 @@ const App: React.FC = () => {
   useEffect(() => { 
       if(syncCode) localStorage.setItem('syncCode', JSON.stringify(syncCode)); 
       else localStorage.removeItem('syncCode');
+      syncCodeRef.current = syncCode; // Update Ref
   }, [syncCode]);
   
-  // Persist User Session
   useEffect(() => { 
-      if (loggedUserId) {
-          localStorage.setItem('loggedUserId', JSON.stringify(loggedUserId)); 
-      } else {
-          localStorage.removeItem('loggedUserId');
-      }
+      if (loggedUserId) localStorage.setItem('loggedUserId', JSON.stringify(loggedUserId)); 
+      else localStorage.removeItem('loggedUserId');
   }, [loggedUserId]);
+
+  // Derived Current User
+  const currentUser = React.useMemo(() => {
+      if (!loggedUserId) return null;
+      return members.find(m => m.id === loggedUserId) || null;
+  }, [members, loggedUserId]);
+
+  // Keep ref updated
+  useEffect(() => {
+      userRef.current = currentUser;
+  }, [currentUser]);
 
   // --- SOCKET.IO CONNECTION ---
   useEffect(() => {
-    // If no server URL is provided, don't try to connect
     if (!serverUrl) return;
 
     console.log("Connecting to:", serverUrl);
 
-    // Init socket
     const socket = io(serverUrl, {
-        transports: ['websocket', 'polling'], // Fallback options
+        transports: ['websocket', 'polling'],
         autoConnect: true,
         reconnectionAttempts: 5
     });
@@ -167,34 +167,25 @@ const App: React.FC = () => {
     socket.on('connect', () => {
         console.log("Connected to backend", socket.id);
         setIsConnected(true);
-        // If we already have a sync code saved, rejoin the session
-        if (syncCode) {
-            console.log("Rejoining session:", syncCode);
-            socket.emit('join_session', { code: syncCode, user: currentUser || { name: 'Unknown' } });
+        // Automatic Rejoin on reconnect
+        if (syncCodeRef.current) {
+            console.log("Rejoining session:", syncCodeRef.current);
+            socket.emit('join_session', { code: syncCodeRef.current, user: userRef.current });
         }
     });
 
-    socket.on('connect_error', (err) => {
-        console.warn("Connection error:", err.message);
-        setIsConnected(false);
-    });
-
     socket.on('disconnect', () => {
-        console.log("Disconnected from backend");
         setIsConnected(false);
     });
 
-    // Handle Incoming Data
-    socket.on('sync_initial_data', (data) => {
-        console.log("Initial data received:", data);
-        shouldEmit.current = false;
-        if (data.products) setProducts(data.products);
-        if (data.categories) setCategories(data.categories);
-        if (data.members) setMembers(data.members);
-        // Re-enable emitting after state settles (next tick)
-        setTimeout(() => { shouldEmit.current = true; }, 100);
+    socket.on('connect_error', (err) => {
+        console.warn("Socket error:", err.message);
+        setIsConnected(false);
     });
 
+    // --- INCOMING DATA HANDLERS ---
+    
+    // Generic Data Sync
     socket.on('data_updated', ({ type, data }) => {
         console.log("Remote update received:", type);
         shouldEmit.current = false; // Don't echo this back
@@ -204,32 +195,87 @@ const App: React.FC = () => {
         setTimeout(() => { shouldEmit.current = true; }, 100);
     });
 
+    // Initial Full Sync
+    socket.on('sync_initial_data', (data) => {
+        console.log("Initial data received");
+        shouldEmit.current = false;
+        
+        // Merge logic: Overwrite local with server if server has data
+        if (data.products && data.products.length > 0) setProducts(data.products);
+        if (data.categories && data.categories.length > 0) setCategories(data.categories);
+        
+        let finalMembers = data.members || [];
+        
+        // --- AUTO-CREATE USER LOGIC ---
+        // We check if "I" exist in the incoming member list.
+        // We rely on userRef.current to get the current logged in state ID, 
+        // or we generate a new one if completely new.
+        
+        const myId = loadState<string | null>('loggedUserId', null); // Direct read to be safe
+        const amIInList = myId && finalMembers.find((m: User) => m.id === myId);
+        
+        // If I am logged in locally, but not in the server list, I need to add myself.
+        if (myId && !amIInList) {
+             // Try to find local user object to push
+             // We can't trust `members` state here as it might be old, so we construct a "New Device" profile if needed
+             // or try to reuse what we had in `userRef`.
+             let meToAdd: User;
+
+             if (userRef.current && userRef.current.id === myId) {
+                 meToAdd = userRef.current;
+             } else {
+                 // Fallback: Create new profile
+                 meToAdd = {
+                      id: myId,
+                      name: `Dispositivo ${Math.floor(Math.random() * 100)}`,
+                      email: '',
+                      avatarUrl: '',
+                      role: 'editor',
+                      isCurrentUser: true
+                 };
+             }
+
+             // Add me to list
+             finalMembers = [...finalMembers, meToAdd];
+             console.log("Auto-adding self to synced members list", meToAdd);
+             
+             // Emit this update immediately so server knows about me
+             // We use a small timeout to let the 'members' state settle if we were to just set it, 
+             // but emitting directly is safer for the group.
+             socket.emit('update_data', { 
+                 roomId: `room_${syncCodeRef.current}`, 
+                 type: 'members', 
+                 data: finalMembers 
+             });
+        }
+        
+        setMembers(finalMembers);
+
+        setTimeout(() => { shouldEmit.current = true; }, 500);
+    });
+
     return () => {
         socket.disconnect();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverUrl]); // Re-connect if URL changes
+  }, [serverUrl]); 
 
-  // --- SYNC EMITTERS ---
-  // When local state changes, send to server IF it's a local change
+  // --- OUTGOING SYNC EMITTERS ---
+  // Broadcast local changes to server
   useEffect(() => {
       if (isConnected && syncCode && shouldEmit.current) {
-          const roomId = `room_${syncCode}`;
-          socketRef.current?.emit('update_data', { roomId, type: 'products', data: products });
+          socketRef.current?.emit('update_data', { roomId: `room_${syncCode}`, type: 'products', data: products });
       }
   }, [products, isConnected, syncCode]);
 
   useEffect(() => {
       if (isConnected && syncCode && shouldEmit.current) {
-          const roomId = `room_${syncCode}`;
-          socketRef.current?.emit('update_data', { roomId, type: 'categories', data: categories });
+          socketRef.current?.emit('update_data', { roomId: `room_${syncCode}`, type: 'categories', data: categories });
       }
   }, [categories, isConnected, syncCode]);
   
   useEffect(() => {
       if (isConnected && syncCode && shouldEmit.current) {
-          const roomId = `room_${syncCode}`;
-          socketRef.current?.emit('update_data', { roomId, type: 'members', data: members });
+          socketRef.current?.emit('update_data', { roomId: `room_${syncCode}`, type: 'members', data: members });
       }
   }, [members, isConnected, syncCode]);
 
@@ -243,20 +289,21 @@ const App: React.FC = () => {
       }
   }, []);
 
-  // Determine current user object based on loggedUserId
-  const currentUser = React.useMemo(() => {
-      if (!loggedUserId) return null;
-      return members.find(m => m.id === loggedUserId) || null;
-  }, [members, loggedUserId]);
-
+  // Safety: Logout if member removed
   useEffect(() => {
-      if (loggedUserId && !currentUser && members.length > 0) {
-          console.warn("User ID in session not found in members list. Logging out.");
-          setLoggedUserId(null);
+      if (loggedUserId && members.length > 0 && !members.find(m => m.id === loggedUserId)) {
+          // Only logout if we are fully synced and confirmed not in list.
+          // To prevent accidental logout on initial load/sync, we could check isConnected
+          if (isConnected) {
+             console.warn("User ID not found in synced members. Logging out.");
+             // setLoggedUserId(null); // Optional: Enable strictly if you want to kick removed users
+          }
       }
-  }, [loggedUserId, currentUser, members]);
+  }, [members, loggedUserId, isConnected]);
 
-  const isAuthenticated = !!currentUser;
+  const isAuthenticated = !!loggedUserId;
+
+  // --- ACTIONS ---
 
   const handleJoinTeam = (name: string) => {
       const newUserId = Date.now().toString();
@@ -272,17 +319,17 @@ const App: React.FC = () => {
       setMembers(prev => [...prev.map(m => ({ ...m, isCurrentUser: false })), newUser]);
       setLoggedUserId(newUserId);
       setPendingInvite(false);
-      window.history.replaceState({}, document.title, window.location.pathname);
   };
 
   const handleManualLogin = () => {
     if (members.length > 0) {
-        setLoggedUserId(members[0].id);
+        const userToLogin = members.find(m => m.isCurrentUser) || members[0];
+        setLoggedUserId(userToLogin.id);
     } else {
         const demoUser: User = {
-            id: 'demo_user',
-            name: 'Usuario Demo',
-            email: 'demo@pantrypal.com',
+            id: 'owner_' + Date.now(),
+            name: 'Administrador',
+            email: 'admin@pantrypal.com',
             avatarUrl: '',
             role: 'owner',
             isCurrentUser: true
@@ -295,21 +342,19 @@ const App: React.FC = () => {
   const handleGoogleLogin = (credentialResponse: any) => {
       const token = credentialResponse.credential;
       const decoded = decodeJwt(token);
-      console.log("Google Login Payload:", decoded);
-
+      
       if (decoded) {
           const existingUser = members.find(m => m.email === decoded.email || m.id === decoded.sub);
 
           if (existingUser) {
               setLoggedUserId(existingUser.id);
-              const needsUpdate = existingUser.avatarUrl !== decoded.picture || existingUser.name !== decoded.name;
-              if (needsUpdate) {
-                  setMembers(prev => prev.map(m => m.id === existingUser.id ? { 
-                      ...m, 
-                      name: decoded.name, 
-                      avatarUrl: decoded.picture 
-                  } : m));
-              }
+              const updatedMembers = members.map(m => m.id === existingUser.id ? { 
+                  ...m, 
+                  name: decoded.name, 
+                  avatarUrl: decoded.picture,
+                  isCurrentUser: true
+              } : { ...m, isCurrentUser: false });
+              setMembers(updatedMembers);
           } else {
               const newUser: User = {
                   id: decoded.sub, 
@@ -319,7 +364,7 @@ const App: React.FC = () => {
                   role: 'owner', 
                   isCurrentUser: true
               };
-              setMembers(prev => [...prev, newUser]);
+              setMembers(prev => [...prev.map(m => ({...m, isCurrentUser: false})), newUser]);
               setLoggedUserId(newUser.id);
           }
       }
@@ -337,21 +382,19 @@ const App: React.FC = () => {
   const handleGenerateCode = async (): Promise<string> => {
       return new Promise((resolve) => {
           if (!socketRef.current || !isConnected) {
-              alert("No hay conexión con el servidor. Verifica la URL del servidor en 'Gestionar Acceso'.");
+              alert("Sin conexión. Verifica tu servidor.");
               resolve('');
               return;
           }
 
-          // Emit create session
           socketRef.current.emit('create_session', {
               products,
               categories,
               members
           });
 
-          // Listen for the code response (one-time listener)
           socketRef.current.once('session_created', ({ code }) => {
-              setSyncCode(code); // Save locally so we stay connected to this session
+              setSyncCode(code); 
               resolve(code);
           });
       });
@@ -359,22 +402,26 @@ const App: React.FC = () => {
 
   const handleLinkDevice = async (code: string) => {
       if (!socketRef.current || !isConnected) {
-          alert("No hay conexión con el servidor. Verifica la URL del servidor en 'Gestionar Acceso'.");
+          alert("Sin conexión.");
           return false;
       }
 
       return new Promise<boolean>((resolve) => {
-          // Join existing session
+          // Identify self
+          const myUser = members.find(m => m.id === loggedUserId);
+          
           socketRef.current?.emit('join_session', { 
               code, 
-              user: currentUser || { name: 'New Device', id: 'dev' } 
+              user: myUser 
           });
 
-          // We wait for initial data as confirmation, or an error
-          const onData = () => {
-              setSyncCode(code);
-              cleanup();
-              resolve(true);
+          // Wait for specific success ack from server
+          const onSuccess = ({ code: validCode }: { code: string }) => {
+              if (validCode === code.toUpperCase()) {
+                  setSyncCode(validCode);
+                  cleanup();
+                  resolve(true);
+              }
           };
           
           const onError = (err: any) => {
@@ -384,14 +431,13 @@ const App: React.FC = () => {
           };
 
           const cleanup = () => {
-              socketRef.current?.off('sync_initial_data', onData);
+              socketRef.current?.off('session_joined', onSuccess);
               socketRef.current?.off('error', onError);
           };
 
-          socketRef.current?.once('sync_initial_data', onData);
+          socketRef.current?.on('session_joined', onSuccess);
           socketRef.current?.once('error', onError);
           
-          // Timeout fallback
           setTimeout(() => {
               cleanup();
               resolve(false); 
@@ -401,10 +447,10 @@ const App: React.FC = () => {
 
   const handleUpdateServerUrl = (url: string) => {
       setServerUrl(url);
-      setSyncCode(null); // Reset sync when server changes
+      setSyncCode(null); 
   };
 
-  // Product Handlers
+  // CRUD Handlers
   const addProduct = (newProduct: Product) => {
     if (currentUser?.role === 'viewer') return;
     setProducts(prev => [newProduct, ...prev]);
@@ -420,7 +466,6 @@ const App: React.FC = () => {
       setProducts(prev => prev.filter(p => p.id !== productId));
   };
 
-  // Category Handlers
   const addCategory = (category: Category) => {
     if (currentUser?.role === 'viewer') return;
     setCategories(prev => [...prev, category]);
@@ -439,28 +484,27 @@ const App: React.FC = () => {
     }
   };
 
-  // Member Handlers
   const updateMembers = (newMembers: User[]) => {
       setMembers(newMembers);
   };
   
   const handleUpdateUser = (updatedUser: User) => {
-      setMembers(prev => prev.map(m => m.id === updatedUser.id ? updatedUser : m));
+      const newMembers = members.map(m => m.id === updatedUser.id ? updatedUser : m);
+      setMembers(newMembers);
   };
 
   return (
     <Router>
       <div className="bg-background-light dark:bg-background-dark min-h-screen text-slate-900 dark:text-white font-display">
         
-        {/* Connection Status Indicator */}
         {!isConnected && isAuthenticated && (
             <div className="bg-amber-500 text-white text-xs text-center p-1 cursor-pointer" onClick={() => window.location.hash = "#/access"}>
-                Sin conexión de sincronización (Click para configurar). Modo offline.
+                Modo Offline. Toca para conectar.
             </div>
         )}
         {isConnected && isAuthenticated && syncCode && (
              <div className="bg-green-600 text-white text-[10px] text-center p-0.5">
-                Sincronizado
+                Sincronizado: {syncCode}
             </div>
         )}
 
