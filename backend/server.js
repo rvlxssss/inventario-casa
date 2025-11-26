@@ -108,7 +108,6 @@ io.on('connection', (socket) => {
   });
 
   // 3. Sync Updates (Bi-directional)
-  // 3. Sync Updates (Bi-directional)
   // Legacy/Full Sync (Overwrites) - Keep for compatibility or bulk updates
   socket.on('update_data', ({ roomId, type, data }) => {
     socket.to(roomId).emit('data_updated', { type, data });
