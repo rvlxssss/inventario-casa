@@ -17,6 +17,11 @@ interface AuthContextType {
     logout: () => void;
     joinTeam: (name: string) => void;
     updateUser: (user: User) => void;
+    // New Auth Methods
+    register: (data: any) => Promise<void>;
+    login: (data: any) => Promise<void>;
+    recoverPassword: (email: string) => Promise<void>;
+    resetPassword: (token: string, password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,6 +30,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [members, setMembers] = useState<User[]>(() => loadState('members', INITIAL_MEMBERS));
     const [loggedUserId, setLoggedUserId] = useState<string | null>(() => loadState('loggedUserId', null));
     const [pendingInvite, setPendingInvite] = useState<boolean>(false);
+    const [authToken, setAuthToken] = useState<string | null>(() => loadState('authToken', null));
 
     // Persistence
     useEffect(() => { saveState('members', members); }, [members]);
@@ -32,6 +38,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (loggedUserId) saveState('loggedUserId', loggedUserId);
         else localStorage.removeItem('loggedUserId');
     }, [loggedUserId]);
+    useEffect(() => {
+        if (authToken) saveState('authToken', authToken);
+        else localStorage.removeItem('authToken');
+    }, [authToken]);
 
     // Check for invite link on load
     useEffect(() => {
@@ -49,16 +59,81 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const isAuthenticated = !!loggedUserId;
 
-    // Safety: Logout if member removed
-    useEffect(() => {
-        if (loggedUserId && members.length > 0 && !members.find(m => m.id === loggedUserId)) {
-            // We might want to be careful here if syncing is happening.
-            // For now, we'll just log a warning, or strictly logout.
-            // console.warn("User ID not found in members list.");
-        }
-    }, [members, loggedUserId]);
+    // --- API HELPERS ---
+    const SERVER_URL = 'http://localhost:3001'; // Should be env var
 
+    const register = async (data: any) => {
+        const res = await fetch(`${SERVER_URL}/api/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message);
+
+        // Auto login
+        handleAuthSuccess(json);
+    };
+
+    const login = async (data: any) => {
+        const res = await fetch(`${SERVER_URL}/api/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message);
+
+        handleAuthSuccess(json);
+    };
+
+    const recoverPassword = async (email: string) => {
+        const res = await fetch(`${SERVER_URL}/api/auth/forgot-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message);
+        // We don't throw if email not found for security, usually just show success message
+    };
+
+    const resetPassword = async (token: string, password: string) => {
+        const res = await fetch(`${SERVER_URL}/api/auth/reset-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, newPassword: password })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message);
+    };
+
+    const handleAuthSuccess = (data: any) => {
+        setAuthToken(data.token);
+
+        const user: User = {
+            id: data.user.id,
+            name: data.user.name,
+            email: data.user.email,
+            avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.name}`,
+            role: 'owner', // Default role for new signups
+            isCurrentUser: true
+        };
+
+        // Add or update in members list
+        setMembers(prev => {
+            const exists = prev.find(m => m.id === user.id);
+            if (exists) {
+                return prev.map(m => m.id === user.id ? { ...user, isCurrentUser: true } : { ...m, isCurrentUser: false });
+            }
+            return [...prev.map(m => ({ ...m, isCurrentUser: false })), user];
+        });
+        setLoggedUserId(user.id);
+    };
+
+    // --- LEGACY METHODS ---
     const loginManual = () => {
+        // Deprecated but kept for compatibility if needed
         if (members.length > 0) {
             const userToLogin = members.find(m => m.isCurrentUser) || members[0];
             setLoggedUserId(userToLogin.id);
@@ -109,7 +184,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const logout = () => {
         setLoggedUserId(null);
+        setAuthToken(null);
         localStorage.removeItem('loggedUserId');
+        localStorage.removeItem('authToken');
         if ((window as any).google && (window as any).google.accounts) {
             (window as any).google.accounts.id.disableAutoSelect();
         }
@@ -138,7 +215,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return (
         <AuthContext.Provider value={{
             members, currentUser, isAuthenticated, pendingInvite, setPendingInvite,
-            setMembers, loginManual, loginGoogle, logout, joinTeam, updateUser
+            setMembers, loginManual, loginGoogle, logout, joinTeam, updateUser,
+            register, login, recoverPassword, resetPassword
         }}>
             {children}
         </AuthContext.Provider>

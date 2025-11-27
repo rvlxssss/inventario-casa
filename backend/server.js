@@ -9,14 +9,23 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const bodyParser = require('body-parser');
+const authController = require('./authController');
 
 const app = express();
 app.use(cors());
+app.use(bodyParser.json());
 
 // Health Check for Render
 app.get('/', (req, res) => {
   res.send('PantryPal Sync Server is Running');
 });
+
+// --- AUTH ROUTES ---
+app.post('/api/auth/register', authController.register);
+app.post('/api/auth/login', authController.login);
+app.post('/api/auth/forgot-password', authController.forgotPassword);
+app.post('/api/auth/reset-password', authController.resetPassword);
 
 const server = http.createServer(app);
 
