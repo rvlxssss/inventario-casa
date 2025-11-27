@@ -129,7 +129,7 @@ const CategoryModal: React.FC<{
 };
 
 export const Inventory: React.FC<InventoryProps> = ({
-    products, categories, onDeleteProduct, onAddCategory, onUpdateCategory, onDeleteCategory, userRole
+    products, categories, onDeleteProduct, onAddCategory, onUpdateCategory, onDeleteCategory, userRole, onUpdateProduct
 }) => {
     const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState('');
@@ -158,6 +158,13 @@ export const Inventory: React.FC<InventoryProps> = ({
     const handleProductClick = (product: Product) => {
         if (userRole === 'viewer') return;
         navigate('/add', { state: { product } });
+    };
+
+    const handleUpdateQuantity = (e: React.MouseEvent, product: Product, change: number) => {
+        e.stopPropagation();
+        if (userRole === 'viewer') return;
+        const newQuantity = Math.max(0, product.quantity + change);
+        onUpdateProduct({ ...product, quantity: newQuantity });
     };
 
     return (
@@ -240,9 +247,23 @@ export const Inventory: React.FC<InventoryProps> = ({
                             <div className="flex-1 min-w-0">
                                 <h3 className="font-semibold text-white truncate">{product.name}</h3>
                                 <div className="flex items-center gap-2 text-xs text-text-muted mt-1">
-                                    <span className="bg-surface-highlight px-2 py-0.5 rounded-md border border-white/5">
-                                        {product.quantity} {product.unit}
-                                    </span>
+                                    <div className="flex items-center bg-surface-highlight rounded-md border border-white/5 overflow-hidden" onClick={e => e.stopPropagation()}>
+                                        <button
+                                            onClick={(e) => handleUpdateQuantity(e, product, -1)}
+                                            className="px-2 py-1 hover:bg-white/10 active:bg-white/20 transition-colors text-white"
+                                        >
+                                            -
+                                        </button>
+                                        <span className="px-2 py-0.5 font-medium text-white min-w-[3rem] text-center">
+                                            {product.quantity} {product.unit}
+                                        </span>
+                                        <button
+                                            onClick={(e) => handleUpdateQuantity(e, product, 1)}
+                                            className="px-2 py-1 hover:bg-white/10 active:bg-white/20 transition-colors text-white"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
                                     <span className={`flex items-center gap-1 ${status.color.replace('bg-', 'text-')}`}>
                                         <span className="w-1.5 h-1.5 rounded-full bg-current" />
                                         {status.text}
