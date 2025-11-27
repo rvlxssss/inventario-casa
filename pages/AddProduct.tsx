@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Product, Category } from '../types';
-import { BottomNav } from '../components/BottomNav';
+import { Layout } from '../components/Layout';
 
 interface AddProductProps {
     categories: Category[];
@@ -43,7 +43,7 @@ const BarcodeScannerModal: React.FC<{
                         scannerRef.current.stop().catch((e: any) => console.warn(e));
                     }
                     scannerRef.current.clear();
-                } catch(e) { /* ignore */ }
+                } catch (e) { /* ignore */ }
             }
         };
     }, [isOpen]);
@@ -70,7 +70,7 @@ const BarcodeScannerModal: React.FC<{
                 (decodedText: string) => {
                     handleStopAndClose(() => onDetected(decodedText));
                 },
-                (_errorMessage: string) => { 
+                (_errorMessage: string) => {
                     // parse error, ignore it.
                 }
             );
@@ -94,7 +94,7 @@ const BarcodeScannerModal: React.FC<{
                 } catch (stopErr) {
                     console.warn("Scanner stop warning:", stopErr);
                 }
-                
+
                 try {
                     scannerRef.current.clear();
                 } catch (clearErr) {
@@ -115,8 +115,8 @@ const BarcodeScannerModal: React.FC<{
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4 animate-fade-in">
-             <div className="w-full max-w-sm bg-white dark:bg-surface-dark rounded-2xl overflow-hidden relative">
-                <button 
+            <div className="w-full max-w-sm glass rounded-2xl overflow-hidden relative border border-white/10">
+                <button
                     onClick={() => handleStopAndClose()}
                     className="absolute top-4 right-4 z-10 bg-black/50 text-white rounded-full p-2 hover:bg-black/70 transition-colors"
                 >
@@ -124,11 +124,11 @@ const BarcodeScannerModal: React.FC<{
                 </button>
 
                 <div className="p-4 text-center">
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Escanear Código</h3>
+                    <h3 className="text-lg font-bold text-white mb-2">Escanear Código</h3>
                     {error ? (
-                         <div className="text-red-500 text-sm mb-4">{error}</div>
+                        <div className="text-danger text-sm mb-4">{error}</div>
                     ) : (
-                        <div className="relative w-full h-64 bg-black rounded-lg overflow-hidden flex items-center justify-center">
+                        <div className="relative w-full h-64 bg-black rounded-lg overflow-hidden flex items-center justify-center border border-white/10">
                             <div id="reader" className="w-full h-full"></div>
                             {/* Loading overlay if initializing */}
                             {!scannerRef.current && !error && (
@@ -138,9 +138,9 @@ const BarcodeScannerModal: React.FC<{
                             )}
                         </div>
                     )}
-                    <p className="text-xs text-slate-500 mt-4">Apunta la cámara al código de barras del producto.</p>
+                    <p className="text-xs text-text-muted mt-4">Apunta la cámara al código de barras del producto.</p>
                 </div>
-             </div>
+            </div>
         </div>
     );
 };
@@ -148,7 +148,7 @@ const BarcodeScannerModal: React.FC<{
 export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpdate }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    
+
     // Check if we are editing an existing product
     const editingProduct = (location.state as any)?.product as Product | undefined;
     const initialCategoryId = (location.state as any)?.categoryId || (categories.length > 0 ? categories[0].id : '');
@@ -158,11 +158,11 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
     const [unit, setUnit] = useState('unidades');
     const [expiryDate, setExpiryDate] = useState('');
     const [categoryId, setCategoryId] = useState(initialCategoryId);
-    
+
     // Price Calculator State
     const [useUnitPrice, setUseUnitPrice] = useState(false);
-    const [pricePerPackage, setPricePerPackage] = useState(''); 
-    const [packageSize, setPackageSize] = useState('1'); 
+    const [pricePerPackage, setPricePerPackage] = useState('');
+    const [packageSize, setPackageSize] = useState('1');
     const [totalCost, setTotalCost] = useState('');
 
     const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -193,7 +193,7 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
             const qty = parseFloat(quantity) || 0;
             const size = parseFloat(packageSize) || 1;
             const price = parseFloat(pricePerPackage) || 0;
-            
+
             if (size > 0) {
                 const numberOfPacks = qty / size;
                 const calculated = numberOfPacks * price;
@@ -230,11 +230,11 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
     const calculateStatus = (dateString: string): Product['status'] => {
         if (!dateString) return 'ok';
         const today = new Date();
-        today.setHours(0,0,0,0);
+        today.setHours(0, 0, 0, 0);
         const expiry = new Date(dateString);
-        
+
         const diffTime = expiry.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
         if (diffDays < 0) return 'expired';
         if (diffDays <= 3) return 'warning';
@@ -247,20 +247,20 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
             // Fetch from OpenFoodFacts
             const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`);
             const data = await response.json();
-            
+
             if (data.status === 1) {
                 const productName = data.product.product_name_es || data.product.product_name || '';
                 if (productName) setName(productName);
-                
+
                 // Try to extract quantity/unit hint
                 if (data.product.quantity) {
-                     const qStr = data.product.quantity.toLowerCase();
-                     if(qStr.includes('l') && !qStr.includes('ml')) setUnit('L');
-                     if(qStr.includes('ml')) setUnit('ml');
-                     if(qStr.includes('kg')) setUnit('kg');
-                     if(qStr.includes('g') && !qStr.includes('kg')) setUnit('g');
+                    const qStr = data.product.quantity.toLowerCase();
+                    if (qStr.includes('l') && !qStr.includes('ml')) setUnit('L');
+                    if (qStr.includes('ml')) setUnit('ml');
+                    if (qStr.includes('kg')) setUnit('kg');
+                    if (qStr.includes('g') && !qStr.includes('kg')) setUnit('g');
                 }
-                
+
             } else {
                 alert("Producto no encontrado en la base de datos pública.");
             }
@@ -292,7 +292,7 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
                 // Fetch Suggestions from OpenFoodFacts Search API
                 const response = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(val)}&search_simple=1&action=process&json=1&page_size=5`);
                 const data = await response.json();
-                
+
                 if (data.products && data.products.length > 0) {
                     setSuggestions(data.products);
                     setShowSuggestions(true);
@@ -314,40 +314,40 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
     };
 
     return (
-        <div className="relative flex min-h-screen w-full flex-col bg-background-light dark:bg-background-dark">
+        <Layout>
             {/* Header */}
-            <div className="flex items-center p-4 justify-between sticky top-0 z-10 bg-background-light dark:bg-background-dark">
-                <button onClick={() => navigate(-1)} className="text-slate-800 dark:text-white flex size-12 shrink-0 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10">
-                    <span className="material-symbols-outlined text-2xl">arrow_back</span>
+            <div className="flex items-center justify-between mb-6">
+                <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-surface-highlight flex items-center justify-center border border-white/5 text-white hover:bg-white/10 transition-colors">
+                    <span className="material-symbols-outlined">arrow_back</span>
                 </button>
-                <h1 className="text-slate-800 dark:text-white text-lg font-bold leading-tight">
+                <h1 className="text-xl font-bold text-white">
                     {editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
                 </h1>
-                <div className="size-12"></div>
+                <div className="w-10"></div>
             </div>
 
-            <main className="flex-1 px-4 pb-24">
+            <main className="pb-24">
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    
+
                     {/* Name Input with Scanner & Autocomplete */}
-                    <div className="space-y-1 relative z-20">
-                        <label className="text-sm font-medium text-slate-500 dark:text-slate-400">Nombre del Producto</label>
+                    <div className="space-y-2 relative z-20">
+                        <label className="text-sm font-medium text-text-muted ml-1">Nombre del Producto</label>
                         <div className="flex gap-2">
-                            <input 
+                            <input
                                 value={name}
                                 onChange={handleNameChange}
                                 onFocus={() => name.length >= 3 && suggestions.length > 0 && setShowSuggestions(true)}
                                 // Delayed blur to allow click on suggestion
                                 onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                                className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark p-4 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-slate-500/50"
+                                className="flex-1 h-14 px-4 rounded-2xl border border-white/10 bg-surface-highlight/50 text-white placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
                                 placeholder="Ej: Leche Deslactosada"
                                 required
                                 autoComplete="off"
                             />
-                            <button 
+                            <button
                                 type="button"
                                 onClick={() => setIsScannerOpen(true)}
-                                className="w-14 rounded-xl bg-slate-200 dark:bg-white/10 flex items-center justify-center text-slate-700 dark:text-white hover:bg-slate-300 dark:hover:bg-white/20 transition-colors"
+                                className="w-14 h-14 rounded-2xl bg-surface-highlight border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors"
                             >
                                 {isLoadingProduct ? (
                                     <span className="material-symbols-outlined animate-spin">sync</span>
@@ -356,29 +356,29 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
                                 )}
                             </button>
                         </div>
-                        
+
                         {/* Autocomplete Dropdown */}
                         {showSuggestions && suggestions.length > 0 && (
-                            <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden z-30 animate-fade-in max-h-60 overflow-y-auto">
+                            <div className="absolute top-full left-0 right-0 mt-2 glass border border-white/10 rounded-2xl shadow-xl overflow-hidden z-30 animate-fade-in max-h-60 overflow-y-auto">
                                 <ul>
                                     {suggestions.map((item, idx) => (
-                                        <li 
+                                        <li
                                             key={item.code || idx}
                                             onClick={() => handleSelectSuggestion(item)}
-                                            className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex items-center gap-3 border-b border-slate-100 dark:border-white/5 last:border-0 transition-colors"
+                                            className="px-4 py-3 hover:bg-white/10 cursor-pointer flex items-center gap-3 border-b border-white/5 last:border-0 transition-colors"
                                         >
                                             {item.image_small_url ? (
                                                 <img src={item.image_small_url} alt="" className="h-8 w-8 object-cover rounded bg-white" />
                                             ) : (
-                                                <div className="h-8 w-8 bg-slate-100 dark:bg-white/10 rounded flex items-center justify-center">
-                                                     <span className="material-symbols-outlined text-sm text-slate-400">restaurant</span>
+                                                <div className="h-8 w-8 bg-surface-highlight rounded flex items-center justify-center">
+                                                    <span className="material-symbols-outlined text-sm text-text-muted">restaurant</span>
                                                 </div>
                                             )}
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-bold text-slate-800 dark:text-white truncate">
+                                                <p className="text-sm font-bold text-white truncate">
                                                     {item.product_name_es || item.product_name}
                                                 </p>
-                                                <p className="text-xs text-slate-400 truncate">
+                                                <p className="text-xs text-text-muted truncate">
                                                     {item.brands || 'Sin marca'}
                                                 </p>
                                             </div>
@@ -391,140 +391,138 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
 
                     {/* Quantity & Unit */}
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                             <label className="text-sm font-medium text-slate-500 dark:text-slate-400">Cantidad Total</label>
-                             <input 
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-text-muted ml-1">Cantidad Total</label>
+                            <input
                                 type="number"
                                 value={quantity}
                                 onChange={(e) => setQuantity(e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark p-4 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-slate-500/50"
+                                className="w-full h-14 px-4 rounded-2xl border border-white/10 bg-surface-highlight/50 text-white placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
                                 placeholder="1"
                                 min="0.1"
                                 step="any"
                                 required
                             />
                         </div>
-                        <div className="space-y-1">
-                             <label className="text-sm font-medium text-slate-500 dark:text-slate-400">Unidad</label>
-                             <div className="relative">
-                                <select 
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-text-muted ml-1">Unidad</label>
+                            <div className="relative">
+                                <select
                                     value={unit}
                                     onChange={(e) => setUnit(e.target.value)}
-                                    className="w-full appearance-none rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark p-4 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-slate-500/50"
+                                    className="w-full h-14 appearance-none rounded-2xl border border-white/10 bg-surface-highlight/50 px-4 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
                                 >
-                                    <option value="unidades">Unidades</option>
-                                    <option value="kg">Kilogramos (kg)</option>
-                                    <option value="g">Gramos (g)</option>
-                                    <option value="L">Litros (L)</option>
-                                    <option value="ml">Mililitros (ml)</option>
-                                    <option value="oz">Onzas (oz)</option>
-                                    <option value="lb">Libras (lb)</option>
+                                    <option value="unidades" className="bg-surface-dark">Unidades</option>
+                                    <option value="kg" className="bg-surface-dark">Kilogramos (kg)</option>
+                                    <option value="g" className="bg-surface-dark">Gramos (g)</option>
+                                    <option value="L" className="bg-surface-dark">Litros (L)</option>
+                                    <option value="ml" className="bg-surface-dark">Mililitros (ml)</option>
+                                    <option value="oz" className="bg-surface-dark">Onzas (oz)</option>
+                                    <option value="lb" className="bg-surface-dark">Libras (lb)</option>
                                 </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
-                                     <span className="material-symbols-outlined">expand_more</span>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-text-muted">
+                                    <span className="material-symbols-outlined">expand_more</span>
                                 </div>
-                             </div>
+                            </div>
                         </div>
                     </div>
-                    
+
                     {/* --- Price Calculator Section --- */}
-                    <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 space-y-3 border border-slate-100 dark:border-white/5">
+                    <div className="glass rounded-2xl p-4 space-y-4 border border-white/10">
                         <div className="flex items-center justify-between">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <div className={`w-5 h-5 rounded border flex items-center justify-center ${useUnitPrice ? 'bg-slate-900 border-slate-900 dark:bg-white dark:border-white' : 'border-slate-400'}`}>
-                                    {useUnitPrice && <span className="material-symbols-outlined text-sm text-white dark:text-slate-900">check</span>}
+                            <label className="flex items-center gap-3 cursor-pointer group">
+                                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${useUnitPrice ? 'bg-primary border-primary' : 'border-text-muted group-hover:border-white'}`}>
+                                    {useUnitPrice && <span className="material-symbols-outlined text-sm text-white">check</span>}
                                 </div>
                                 <input type="checkbox" checked={useUnitPrice} onChange={(e) => setUseUnitPrice(e.target.checked)} className="hidden" />
-                                <span className="text-sm font-bold text-slate-800 dark:text-white">Calcular Precio</span>
+                                <span className="text-sm font-bold text-white">Calcular Precio</span>
                             </label>
                             {totalCost && (
-                                <span className="text-green-600 font-bold bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded text-sm">
+                                <span className="text-success font-bold bg-success/20 px-3 py-1 rounded-lg text-sm border border-success/30">
                                     Total: ${totalCost}
                                 </span>
                             )}
                         </div>
 
                         {useUnitPrice && (
-                            <div className="grid grid-cols-2 gap-3 animate-fade-in">
+                            <div className="grid grid-cols-2 gap-4 animate-fade-in">
                                 <div>
-                                    <label className="text-xs text-slate-500 block mb-1">Precio Unitario</label>
+                                    <label className="text-xs text-text-muted block mb-1 ml-1">Precio Unitario</label>
                                     <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-                                        <input 
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">$</span>
+                                        <input
                                             type="number"
                                             value={pricePerPackage}
                                             onChange={(e) => setPricePerPackage(e.target.value)}
-                                            className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-black/20 p-2 pl-6 text-sm text-slate-900 dark:text-white outline-none focus:border-slate-500"
+                                            className="w-full rounded-xl border border-white/10 bg-surface-highlight/30 p-3 pl-6 text-sm text-white outline-none focus:ring-2 focus:ring-primary/50"
                                             placeholder="2.50"
                                         />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-xs text-slate-500 block mb-1">Tamaño ({unit})</label>
-                                    <input 
+                                    <label className="text-xs text-text-muted block mb-1 ml-1">Tamaño ({unit})</label>
+                                    <input
                                         type="number"
                                         value={packageSize}
                                         onChange={(e) => setPackageSize(e.target.value)}
-                                        className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-black/20 p-2 text-sm text-slate-900 dark:text-white outline-none focus:border-slate-500"
+                                        className="w-full rounded-xl border border-white/10 bg-surface-highlight/30 p-3 text-sm text-white outline-none focus:ring-2 focus:ring-primary/50"
                                         placeholder="1"
                                     />
                                 </div>
                                 <div className="col-span-2">
-                                     <p className="text-[10px] text-slate-400">
+                                    <p className="text-[10px] text-text-muted leading-relaxed">
                                         Ej: Si compraste 2 Litros (Cantidad Total), y cada botella es de 1 Litro (Tamaño) y cuesta $1.50 (Precio Unitario), el costo total será $3.00.
-                                     </p>
+                                    </p>
                                 </div>
                             </div>
                         )}
                     </div>
 
                     {/* Expiry Date */}
-                    <div className="space-y-1">
-                        <label className="text-sm font-medium text-slate-500 dark:text-slate-400">Fecha de Vencimiento</label>
-                        <input 
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-text-muted ml-1">Fecha de Vencimiento</label>
+                        <input
                             type="date"
                             value={expiryDate}
                             onChange={(e) => setExpiryDate(e.target.value)}
-                            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark p-4 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-slate-500/50"
+                            className="w-full h-14 px-4 rounded-2xl border border-white/10 bg-surface-highlight/50 text-white outline-none focus:ring-2 focus:ring-primary/50 transition-all [color-scheme:dark]"
                         />
                     </div>
 
                     {/* Category Selection */}
-                    <div className="space-y-1">
-                         <label className="text-sm font-medium text-slate-500 dark:text-slate-400">Categoría</label>
-                         <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-text-muted ml-1">Categoría</label>
+                        <div className="grid grid-cols-2 gap-3">
                             {categories.map(cat => (
                                 <button
                                     key={cat.id}
                                     type="button"
                                     onClick={() => setCategoryId(cat.id)}
-                                    className={`flex items-center gap-2 p-3 rounded-xl border transition-all ${categoryId === cat.id ? 'bg-slate-900 border-slate-900 text-white dark:bg-white dark:border-white dark:text-slate-900' : 'bg-white border-slate-200 text-slate-600 dark:bg-surface-dark dark:border-white/5 dark:text-slate-300'}`}
+                                    className={`flex items-center gap-3 p-4 rounded-2xl border transition-all ${categoryId === cat.id ? 'bg-primary border-primary text-white shadow-lg shadow-primary/25' : 'bg-surface-highlight/30 border-white/5 text-text-muted hover:bg-surface-highlight/50'}`}
                                 >
                                     <span className="material-symbols-outlined text-xl">{cat.icon}</span>
                                     <span className="text-sm font-bold">{cat.name}</span>
                                 </button>
                             ))}
-                         </div>
+                        </div>
                     </div>
 
-                    <button 
+                    <button
                         type="submit"
-                        className="w-full rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 p-4 font-bold text-lg hover:opacity-90 active:scale-[0.98] transition-all shadow-lg shadow-slate-900/10 dark:shadow-white/5"
+                        className="w-full h-14 rounded-2xl bg-white text-black font-bold text-lg hover:bg-gray-200 active:scale-[0.98] transition-all shadow-lg shadow-white/10 mt-8"
                     >
                         {editingProduct ? 'Actualizar Producto' : 'Guardar Producto'}
                     </button>
                 </form>
             </main>
-            
+
             {isScannerOpen && (
-                <BarcodeScannerModal 
+                <BarcodeScannerModal
                     isOpen={isScannerOpen}
                     onClose={() => setIsScannerOpen(false)}
                     onDetected={handleBarcodeDetected}
                 />
             )}
-
-            <BottomNav />
-        </div>
+        </Layout>
     );
 };

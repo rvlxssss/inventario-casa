@@ -137,11 +137,13 @@ export const Inventory: React.FC<InventoryProps> = ({
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
     const filteredProducts = useMemo(() => {
-        return products.filter(p => {
-            const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesCategory = selectedCategory === 'all' || p.categoryId === selectedCategory;
-            return matchesSearch && matchesCategory;
-        });
+        return products
+            .filter(p => p.quantity > 0) // Hide out of stock items
+            .filter(p => {
+                const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+                const matchesCategory = selectedCategory === 'all' || p.categoryId === selectedCategory;
+                return matchesSearch && matchesCategory;
+            });
     }, [products, searchTerm, selectedCategory]);
 
     const getExpiryStatus = (dateStr: string) => {
