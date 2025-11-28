@@ -39,8 +39,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                             return (
                                 <button
                                     key={item.path}
-                                    onClick={() => navigate(item.path)}
-                                    className="relative -top-6 bg-primary hover:bg-primary-dark text-white w-14 h-14 rounded-full shadow-lg shadow-primary/40 flex items-center justify-center transition-transform active:scale-95"
+                                    onClick={() => {
+                                        if (!isActive) navigate(item.path);
+                                    }}
+                                    className={`relative -top-6 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-transform ${isActive
+                                            ? 'bg-primary-dark text-white/50 cursor-default'
+                                            : 'bg-primary hover:bg-primary-dark text-white active:scale-95 shadow-primary/40'
+                                        }`}
                                 >
                                     <span className="material-symbols-outlined text-3xl">{item.icon}</span>
                                 </button>
@@ -50,8 +55,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                         return (
                             <button
                                 key={item.path}
-                                onClick={() => navigate(item.path)}
-                                className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all duration-300 ${isActive ? 'text-primary' : 'text-text-muted hover:text-text'
+                                onClick={() => {
+                                    if (!isActive) navigate(item.path);
+                                }}
+                                className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all duration-300 ${isActive ? 'text-primary cursor-default' : 'text-text-muted hover:text-text'
                                     }`}
                             >
                                 <span className={`material-symbols-outlined text-2xl mb-0.5 transition-transform ${isActive ? 'scale-110' : ''}`}>
