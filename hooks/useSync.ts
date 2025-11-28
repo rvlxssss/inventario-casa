@@ -34,11 +34,22 @@ export const useSync = (serverUrl: string) => {
     // Register callback to capture local changes
     useEffect(() => {
         registerSyncCallback((action) => {
-            if (shouldEmit.current && isConnected && syncCodeRef.current) {
-                socketRef.current?.emit('sync_action', {
-                    roomId: `room_${syncCodeRef.current}`,
-                    action
-                });
+            if (shouldEmit.current && isConnected) {
+                // Determine Room ID (User Room or Sync Code Room)
+                let roomId = '';
+                if (syncCodeRef.current) {
+                    roomId = `room_${syncCodeRef.current}`;
+                } else if (userRef.current) {
+                    roomId = `user_${userRef.current.id}`;
+                }
+
+                if (roomId) {
+                    socketRef.current?.emit('sync_action', {
+                        roomId,
+                        action,
+                        userId: userRef.current?.id
+                    });
+                }
             }
         });
     }, [registerSyncCallback, isConnected]);
@@ -56,6 +67,13 @@ export const useSync = (serverUrl: string) => {
         socket.on('connect', () => {
             console.log("Connected to backend", socket.id);
             setIsConnected(true);
+
+            // Join User Room if logged in
+            if (userRef.current) {
+                socket.emit('join_user_room', userRef.current.id);
+            }
+
+            // Join Sync Session if code exists
             if (syncCodeRef.current) {
                 socket.emit('join_session', { code: syncCodeRef.current, user: userRef.current });
             }

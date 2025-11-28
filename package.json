@@ -12,6 +12,8 @@
     "@capacitor/android": "^5.7.8",
     "@capacitor/core": "^5.7.8",
     "@capacitor/local-notifications": "^5.0.8",
+    "dotenv": "^17.2.3",
+    "mongoose": "^9.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.14.0",
