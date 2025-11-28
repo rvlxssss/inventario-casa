@@ -117,7 +117,17 @@ export const useSync = (serverUrl: string) => {
             shouldEmit.current = false;
             if (data.products?.length > 0) setProducts(data.products);
             if (data.categories?.length > 0) setCategories(data.categories);
-            if (data.members?.length > 0) setMembers(data.members);
+            if (data.members?.length > 0) {
+                setMembers(() => {
+                    const newMembers = data.members;
+                    const currentUser = userRef.current;
+                    // Ensure current user is preserved if missing from sync data
+                    if (currentUser && !newMembers.find((m: any) => m.id === currentUser.id)) {
+                        return [...newMembers, currentUser];
+                    }
+                    return newMembers;
+                });
+            }
             setTimeout(() => { shouldEmit.current = true; }, 500);
         });
 
