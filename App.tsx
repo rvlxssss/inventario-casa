@@ -149,6 +149,7 @@ const MainApp: React.FC = () => {
                                 products={products}
                                 categories={categories}
                                 onUpdateProduct={updateProduct}
+                                onAddProduct={addProduct}
                                 userRole={currentUser.role}
                             /> : <Navigate to="/" />}
                     />
