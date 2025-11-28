@@ -9,6 +9,7 @@ import { ShoppingList } from './pages/ShoppingList';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { InventoryProvider, useInventory } from './context/InventoryContext';
 import { useSync } from './hooks/useSync';
+import { useNotifications } from './hooks/useNotifications';
 import { loadState, saveState } from './utils/storage';
 
 const JoinInviteModal: React.FC<{
@@ -73,6 +74,9 @@ const MainApp: React.FC = () => {
 
     // Initialize Sync Hook
     const { isConnected, syncCode, createSession, joinSession, setSyncCode } = useSync(serverUrl);
+
+    // Initialize Notifications
+    useNotifications();
 
     useEffect(() => { saveState('serverUrl', serverUrl); }, [serverUrl]);
 
