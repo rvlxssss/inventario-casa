@@ -1,8 +1,8 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.pantrypal.app',
-  appName: 'PantryPal',
+  appId: 'com.rvlxssss.inventariocasa',
+  appName: 'Inventario Casa',
   webDir: 'dist',
   server: {
     androidScheme: 'https'

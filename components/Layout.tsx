@@ -20,8 +20,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     return (
         <div className="min-h-screen bg-background text-text pb-24 relative overflow-hidden">
             {/* Ambient Background Effects */}
-            <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 rounded-full blur-[100px] pointer-events-none z-0" />
-            <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary/20 rounded-full blur-[100px] pointer-events-none z-0" />
+            {/* Ambient Background Effects */}
+            <div className="fixed top-[-20%] left-[-20%] w-[80%] h-[80%] bg-primary/20 rounded-full blur-[120px] animate-pulse-slow pointer-events-none z-0" />
+            <div className="fixed bottom-[-20%] right-[-20%] w-[80%] h-[80%] bg-secondary/10 rounded-full blur-[120px] animate-pulse-slow pointer-events-none z-0" style={{ animationDelay: '1.5s' }} />
 
             {/* Main Content */}
             <main className="relative z-10 p-4 animate-fade-in">
