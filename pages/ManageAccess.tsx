@@ -212,10 +212,29 @@ const DeviceSyncModal: React.FC<{
 
                             <button
                                 onClick={handleCopy}
-                                className="text-primary text-sm font-bold flex items-center gap-2 mb-8 hover:underline"
+                                className="text-primary text-sm font-bold flex items-center gap-2 mb-4 hover:underline"
                             >
                                 <span className="material-symbols-outlined text-lg">content_copy</span>
                                 Copiar Código
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    setGeneratedCode('');
+                                    // Trigger generation
+                                    const fetchCode = async () => {
+                                        const c = await onGenerateCode();
+                                        if (c) {
+                                            const formatted = `${c.substring(0, 3)}-${c.substring(3, 6)}`;
+                                            setGeneratedCode(formatted);
+                                        }
+                                    };
+                                    fetchCode();
+                                }}
+                                className="text-text-muted text-xs font-medium flex items-center gap-1 mb-8 hover:text-white transition-colors"
+                            >
+                                <span className="material-symbols-outlined text-sm">refresh</span>
+                                Generar Nuevo Código
                             </button>
 
                             <div className="w-full bg-warning/10 p-3 rounded-lg flex items-start gap-3 border border-warning/20">
