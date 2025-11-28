@@ -59,7 +59,7 @@ const JoinInviteModal: React.FC<{
 
 const MainApp: React.FC = () => {
     const {
-        products, categories,
+        products, categories, expenses,
         addProduct, updateProduct, deleteProduct,
         addCategory, updateCategory, deleteCategory
     } = useInventory();
@@ -133,6 +133,7 @@ const MainApp: React.FC = () => {
                                 onUpdateCategory={updateCategory}
                                 onDeleteCategory={deleteCategory}
                                 userRole={currentUser.role}
+                                expenses={expenses}
                             /> : <Navigate to="/" />}
                     />
                     <Route

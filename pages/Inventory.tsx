@@ -12,6 +12,7 @@ interface InventoryProps {
     onUpdateCategory: (category: Category) => void;
     onDeleteCategory: (id: string) => void;
     userRole: 'owner' | 'editor' | 'viewer';
+    expenses: Record<string, number>;
 }
 
 const CategoryModal: React.FC<{
@@ -128,13 +129,73 @@ const CategoryModal: React.FC<{
     );
 };
 
+const ExpensesModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    expenses: Record<string, number>;
+}> = ({ isOpen, onClose, expenses }) => {
+    if (!isOpen) return null;
+
+    const sortedKeys = Object.keys(expenses).sort().reverse();
+
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
+    };
+
+    const getMonthName = (key: string) => {
+        const [year, month] = key.split('-');
+        const date = new Date(parseInt(year), parseInt(month) - 1);
+        return date.toLocaleString('es-CL', { month: 'long', year: 'numeric' });
+    };
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="glass w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-white/10 flex flex-col max-h-[80vh]">
+                <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-bold text-white">Historial de Gastos</h3>
+                    <button onClick={onClose} className="text-text-muted hover:text-white">
+                        <span className="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                    {sortedKeys.length === 0 ? (
+                        <p className="text-text-muted text-center py-8">No hay registros de gastos.</p>
+                    ) : (
+                        sortedKeys.map(key => (
+                            <div key={key} className="flex items-center justify-between p-4 rounded-xl bg-surface-highlight/50 border border-white/5">
+                                <div>
+                                    <p className="text-white font-bold capitalize">{getMonthName(key)}</p>
+                                    <p className="text-xs text-text-muted">{key}</p>
+                                </div>
+                                <p className="text-primary font-bold text-lg">{formatCurrency(expenses[key])}</p>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export const Inventory: React.FC<InventoryProps> = ({
-    products, categories, onDeleteProduct, onAddCategory, onUpdateCategory, onDeleteCategory, userRole, onUpdateProduct
+    products, categories, onDeleteProduct, onAddCategory, onUpdateCategory, onDeleteCategory, userRole, onUpdateProduct, expenses
 }) => {
     const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string | 'all'>('all');
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+    const [isExpensesModalOpen, setIsExpensesModalOpen] = useState(false);
+
+    const getCurrentMonthExpense = () => {
+        const date = new Date();
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        return expenses[key] || 0;
+    };
+
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
+    };
 
     const getDiffDays = (dateStr: string) => {
         if (!dateStr) return 9999;
@@ -209,6 +270,23 @@ export const Inventory: React.FC<InventoryProps> = ({
                             <span className="text-xs font-bold text-primary">{products.length}</span>
                         </div>
                     </div>
+                </div>
+
+                {/* Monthly Expense Card */}
+                <div
+                    onClick={() => setIsExpensesModalOpen(true)}
+                    className="glass p-4 rounded-2xl flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors border border-white/10"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">
+                            <span className="material-symbols-outlined">payments</span>
+                        </div>
+                        <div>
+                            <p className="text-xs text-text-muted uppercase font-bold tracking-wider">Gasto Mensual</p>
+                            <p className="text-xl font-bold text-white">{formatCurrency(getCurrentMonthExpense())}</p>
+                        </div>
+                    </div>
+                    <span className="material-symbols-outlined text-text-muted">chevron_right</span>
                 </div>
 
                 {/* Search Bar */}
@@ -332,6 +410,12 @@ export const Inventory: React.FC<InventoryProps> = ({
                 onAdd={onAddCategory}
                 onUpdate={onUpdateCategory}
                 onDelete={onDeleteCategory}
+            />
+
+            <ExpensesModal
+                isOpen={isExpensesModalOpen}
+                onClose={() => setIsExpensesModalOpen(false)}
+                expenses={expenses}
             />
         </Layout>
     );

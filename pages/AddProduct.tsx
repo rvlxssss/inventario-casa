@@ -188,19 +188,18 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
     }, [editingProduct]);
 
     // --- Price Calculation Logic ---
+    // --- Price Calculation Logic ---
     useEffect(() => {
         if (useUnitPrice) {
             const qty = parseFloat(quantity) || 0;
-            const size = parseFloat(packageSize) || 1;
             const price = parseFloat(pricePerPackage) || 0;
 
-            if (size > 0) {
-                const numberOfPacks = qty / size;
-                const calculated = numberOfPacks * price;
-                setTotalCost(calculated > 0 ? calculated.toFixed(2) : '');
-            }
+            // User requested: Unit Price * Quantity
+            // We assume 'pricePerPackage' is the Unit Price.
+            const calculated = qty * price;
+            setTotalCost(calculated > 0 ? calculated.toFixed(0) : '');
         }
-    }, [quantity, packageSize, pricePerPackage, useUnitPrice]);
+    }, [quantity, pricePerPackage, useUnitPrice]);
 
 
     const handleSubmit = (e: React.FormEvent) => {
