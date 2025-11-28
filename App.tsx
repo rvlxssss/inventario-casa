@@ -80,7 +80,13 @@ const MainApp: React.FC = () => {
     // Initialize Notifications
     useNotifications();
 
-    useEffect(() => { saveState('serverUrl', serverUrl); }, [serverUrl]);
+    useEffect(() => {
+        // Auto-migrate from old Vercel URL to Render URL
+        if (serverUrl === 'https://inventario-casa.vercel.app') {
+            setServerUrl('https://inventario-dd0a.onrender.com');
+        }
+        saveState('serverUrl', serverUrl);
+    }, [serverUrl]);
 
     const handleUpdateServerUrl = (url: string) => {
         setServerUrl(url);
