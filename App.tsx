@@ -66,7 +66,7 @@ const MainApp: React.FC = () => {
 
     const {
         members, setMembers, currentUser, isAuthenticated,
-        loginManual, loginGoogle, logout, joinTeam, updateUser,
+        logout, joinTeam, updateUser,
         pendingInvite, setPendingInvite
     } = useAuth();
 
@@ -115,10 +115,7 @@ const MainApp: React.FC = () => {
                         path="/"
                         element={
                             !isAuthenticated ?
-                                <Login
-                                    onLogin={loginManual}
-                                    onGoogleLogin={loginGoogle}
-                                /> : <Navigate to="/inventory" />
+                                <Login /> : <Navigate to="/inventory" />
                         }
                     />
                     <Route

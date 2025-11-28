@@ -440,7 +440,7 @@ export const ManageAccess: React.FC<ManageAccessProps> = ({
                                         <p className="text-white font-bold truncate">{member.name}</p>
                                         {member.isCurrentUser && <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-text-muted shrink-0">Tú</span>}
                                     </div>
-                                    <p className="text-text-muted text-xs truncate">{member.email}</p>
+                                    {/* Email removed as it's no longer part of User type */}
                                 </div>
 
                                 <div className="flex items-center gap-2 shrink-0">

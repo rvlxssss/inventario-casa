@@ -1,8 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import { User } from '../types';
 import { loadState, saveState } from '../utils/storage';
-import { User } from '../types';
-import { loadState, saveState } from '../utils/storage';
 // Actually, I should check if decodeJwt is used. It was used in loginGoogle which I removed. So it should be removed.
 // The previous edit added User and loadState again. I need to remove the duplicates.
 
