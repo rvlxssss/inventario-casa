@@ -56,7 +56,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // --- API HELPERS ---
     const SERVER_URL = import.meta.env.PROD
-        ? 'https://inventario-casa.vercel.app'
+        ? 'https://inventario-dd0a.onrender.com'
         : 'http://localhost:3001';
 
     const register = async (data: { username: string; pin: string }) => {

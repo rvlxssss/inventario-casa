@@ -71,7 +71,7 @@ const MainApp: React.FC = () => {
     } = useAuth();
 
     const [serverUrl, setServerUrl] = useState<string>(() => loadState('serverUrl', import.meta.env.PROD
-        ? 'https://inventario-casa.vercel.app'
+        ? 'https://inventario-dd0a.onrender.com'
         : 'http://localhost:3001'));
 
     // Initialize Sync Hook
