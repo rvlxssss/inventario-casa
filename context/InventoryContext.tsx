@@ -114,12 +114,24 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
                         unitCost = updatedProduct.cost / updatedProduct.quantity;
                         expense = unitCost * diff;
                     }
-                    // Scenario B: Cost didn't increase (Quick Add via + button)
-                    // Use the old Unit Price to calculate expense and ADD it to the total cost.
-                    else if (oldProduct.cost && oldProduct.quantity > 0) {
-                        unitCost = oldProduct.cost / oldProduct.quantity;
-                        expense = unitCost * diff;
-                        finalProduct.cost = (oldProduct.cost || 0) + expense;
+                    // Scenario B: Cost didn't increase (Quick Add via + button OR Shopping List Restock)
+                    else {
+                        // Try to get unit cost from old product state
+                        if (oldProduct.cost && oldProduct.quantity > 0) {
+                            unitCost = oldProduct.cost / oldProduct.quantity;
+                        }
+                        // If not available (e.g. qty was 0), try to find last known price from transaction history
+                        else {
+                            const lastTransaction = transactions.find(t => t.productId === updatedProduct.id && t.type === 'expense' && t.amount > 0);
+                            if (lastTransaction) {
+                                unitCost = lastTransaction.amount / lastTransaction.quantity;
+                            }
+                        }
+
+                        if (unitCost > 0) {
+                            expense = unitCost * diff;
+                            finalProduct.cost = (oldProduct.cost || 0) + expense;
+                        }
                     }
 
                     if (expense > 0) {

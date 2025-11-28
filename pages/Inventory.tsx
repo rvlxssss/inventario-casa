@@ -173,10 +173,13 @@ const ExpensesModal: React.FC<{
                         <p className="text-text-muted text-center py-8">No hay registros de movimientos.</p>
                     ) : (
                         sortedKeys.map(key => {
-                            const monthTransactions = groupedTransactions[key].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                            const totalExpense = monthTransactions
+                            const monthTransactions = groupedTransactions[key]
                                 .filter(t => t.type === 'expense')
-                                .reduce((sum, t) => sum + t.amount, 0);
+                                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+                            const totalExpense = monthTransactions.reduce((sum, t) => sum + t.amount, 0);
+
+                            if (monthTransactions.length === 0) return null;
 
                             return (
                                 <div key={key} className="space-y-3">
@@ -191,21 +194,19 @@ const ExpensesModal: React.FC<{
                                         {monthTransactions.map(t => (
                                             <div key={t.id} className="flex items-center justify-between p-3 rounded-xl bg-surface-highlight/30 border border-white/5">
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${t.type === 'expense' ? 'bg-primary/20 text-primary' : 'bg-warning/20 text-warning'}`}>
-                                                        <span className="material-symbols-outlined text-sm">
-                                                            {t.type === 'expense' ? 'shopping_cart' : 'remove_shopping_cart'}
-                                                        </span>
+                                                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-primary/20 text-primary">
+                                                        <span className="material-symbols-outlined text-sm">shopping_cart</span>
                                                     </div>
                                                     <div>
                                                         <p className="text-sm font-medium text-white">{t.productName}</p>
                                                         <p className="text-[10px] text-text-muted">
-                                                            {new Date(t.date).toLocaleDateString()} • {t.type === 'expense' ? 'Agregado' : 'Consumido'}: {t.quantity}
+                                                            {new Date(t.date).toLocaleDateString()} • Agregado: {t.quantity}
                                                         </p>
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
-                                                    <p className={`text-sm font-bold ${t.type === 'expense' ? 'text-white' : 'text-text-muted'}`}>
-                                                        {t.type === 'expense' ? formatCurrency(t.amount) : '-'}
+                                                    <p className="text-sm font-bold text-white">
+                                                        {formatCurrency(t.amount)}
                                                     </p>
                                                 </div>
                                             </div>
