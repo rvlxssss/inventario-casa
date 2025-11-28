@@ -71,7 +71,7 @@ const MainApp: React.FC = () => {
     } = useAuth();
 
     const [serverUrl, setServerUrl] = useState<string>(() => loadState('serverUrl', import.meta.env.PROD
-        ? 'https://inventario-casa-a7gtin49a-matias-projects-027cf7e3.vercel.app'
+        ? 'https://inventario-casa.vercel.app'
         : 'http://localhost:3001'));
 
     // Initialize Sync Hook

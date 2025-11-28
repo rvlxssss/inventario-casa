@@ -1,8 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import { User } from '../types';
 import { loadState, saveState } from '../utils/storage';
-// Actually, I should check if decodeJwt is used. It was used in loginGoogle which I removed. So it should be removed.
-// The previous edit added User and loadState again. I need to remove the duplicates.
 
 const INITIAL_MEMBERS: User[] = [];
 
@@ -58,7 +56,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // --- API HELPERS ---
     const SERVER_URL = import.meta.env.PROD
-        ? 'https://inventario-casa-a7gtin49a-matias-projects-027cf7e3.vercel.app'
+        ? 'https://inventario-casa.vercel.app'
         : 'http://localhost:3001';
 
     const register = async (data: { username: string; pin: string }) => {
