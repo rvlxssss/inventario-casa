@@ -231,13 +231,14 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
         if (!dateString) return 'ok';
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const expiry = new Date(dateString);
+        const [year, month, day] = dateString.split('-').map(Number);
+        const expiry = new Date(year, month - 1, day);
 
         const diffTime = expiry.getTime() - today.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
         if (diffDays < 0) return 'expired';
-        if (diffDays <= 3) return 'warning';
+        if (diffDays <= 7) return 'warning';
         return 'ok';
     };
 

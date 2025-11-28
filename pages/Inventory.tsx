@@ -136,24 +136,47 @@ export const Inventory: React.FC<InventoryProps> = ({
     const [selectedCategory, setSelectedCategory] = useState<string | 'all'>('all');
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
+    const getDiffDays = (dateStr: string) => {
+        if (!dateStr) return 9999;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const expiry = new Date(year, month - 1, day);
+        const diffTime = expiry.getTime() - today.getTime();
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    };
+
     const filteredProducts = useMemo(() => {
-        return products
+        const filtered = products
             .filter(p => p.quantity > 0) // Hide out of stock items
             .filter(p => {
                 const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
                 const matchesCategory = selectedCategory === 'all' || p.categoryId === selectedCategory;
                 return matchesSearch && matchesCategory;
             });
+
+        return filtered.sort((a, b) => {
+            const daysA = getDiffDays(a.expiryDate);
+            const daysB = getDiffDays(b.expiryDate);
+
+            const getPriority = (days: number) => {
+                if (days < 0) return 0; // Expired
+                if (days <= 7) return 1; // About to expire
+                return 2; // Good condition
+            };
+
+            const priorityA = getPriority(daysA);
+            const priorityB = getPriority(daysB);
+
+            if (priorityA !== priorityB) return priorityA - priorityB;
+            return daysA - daysB;
+        });
     }, [products, searchTerm, selectedCategory]);
 
     const getExpiryStatus = (dateStr: string) => {
-        const today = new Date();
-        const expiry = new Date(dateStr);
-        const diffTime = expiry.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
+        const diffDays = getDiffDays(dateStr);
         if (diffDays < 0) return { color: 'bg-danger', text: 'Vencido', icon: 'error' };
-        if (diffDays <= 3) return { color: 'bg-warning', text: `${diffDays} días`, icon: 'warning' };
+        if (diffDays <= 7) return { color: 'bg-warning', text: diffDays === 0 ? 'Vence hoy' : `${diffDays} días`, icon: 'warning' };
         return { color: 'bg-success', text: 'Buen estado', icon: 'check_circle' };
     };
 
