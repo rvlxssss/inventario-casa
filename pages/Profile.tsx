@@ -16,19 +16,17 @@ interface EditProfileModalProps {
     isOpen: boolean;
     onClose: () => void;
     user: User;
-    onSave: (name: string, email: string, avatarUrl: string) => void;
+    onSave: (name: string, avatarUrl: string) => void;
 }
 
 const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, user, onSave }) => {
     const [name, setName] = useState(user.name);
-    const [email, setEmail] = useState(user.email);
     const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl);
 
     // Reset state when modal opens
     React.useEffect(() => {
         if (isOpen) {
             setName(user.name);
-            setEmail(user.email);
             setAvatarUrl(user.avatarUrl);
         }
     }, [isOpen, user]);
@@ -71,22 +69,14 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, us
 
                     {/* Fields */}
                     <div>
-                        <label className="text-sm font-medium text-text-muted mb-1 block">Nombre</label>
+                        <label className="text-sm font-medium text-text-muted mb-1 block">Nombre de Usuario</label>
                         <input
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             className="w-full rounded-xl border border-white/10 bg-surface-highlight/50 p-3 text-white focus:ring-2 focus:ring-primary/50 outline-none"
                         />
                     </div>
-                    <div>
-                        <label className="text-sm font-medium text-text-muted mb-1 block">Email</label>
-                        <input
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="w-full rounded-xl border border-white/10 bg-surface-highlight/50 p-3 text-white focus:ring-2 focus:ring-primary/50 outline-none"
-                            type="email"
-                        />
-                    </div>
+
                     <div>
                         <label className="text-sm font-medium text-text-muted mb-1 block">URL de Imagen (Opcional)</label>
                         <input
@@ -107,11 +97,11 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, us
                     </button>
                     <button
                         onClick={() => {
-                            if (name && email) {
-                                onSave(name, email, avatarUrl);
+                            if (name) {
+                                onSave(name, avatarUrl);
                                 onClose();
                             } else {
-                                alert("Nombre y Email requeridos");
+                                alert("Nombre requerido");
                             }
                         }}
                         className="flex-1 h-12 rounded-xl bg-primary hover:bg-primary-dark text-white font-bold shadow-lg shadow-primary/25"
@@ -142,17 +132,16 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
         setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
-    const handleSaveProfile = (name: string, email: string, avatarUrl: string) => {
+    const handleSaveProfile = (name: string, avatarUrl: string) => {
         onUpdateUser({
             ...user,
             name,
-            email,
             avatarUrl
         });
     };
 
     const handleChangePassword = () => {
-        alert("Cambiar Contraseña: Se ha enviado un email de restablecimiento.");
+        alert("Cambiar PIN: Esta funcionalidad estará disponible pronto.");
     };
 
     const handleSupport = () => {
@@ -242,7 +231,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
                     </div>
                     <div className="flex flex-col items-center justify-center">
                         <p className="text-white text-2xl font-bold">{user.name}</p>
-                        <p className="text-text-muted text-base">{user.email}</p>
+                        <p className="text-text-muted text-base">Usuario</p>
                     </div>
                     <button
                         onClick={() => setIsEditOpen(true)}
@@ -277,7 +266,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
                                 <div className="text-white flex items-center justify-center rounded-lg bg-white/10 shrink-0 size-10">
                                     <span className="material-symbols-outlined">lock</span>
                                 </div>
-                                <p className="text-white text-base font-medium flex-1">Cambiar Contraseña</p>
+                                <p className="text-white text-base font-medium flex-1">Cambiar PIN</p>
                             </div>
                             <span className="material-symbols-outlined text-text-muted">chevron_right</span>
                         </button>

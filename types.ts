@@ -20,8 +20,7 @@ export interface Product {
 
 export interface User {
     id: string;
-    name: string;
-    email: string;
+    name: string; // Username
     avatarUrl: string;
     role: 'owner' | 'editor' | 'viewer';
     isCurrentUser?: boolean;

@@ -2,7 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { sendRecoveryEmail } = require('./emailService');
 
 const USERS_FILE = path.join(__dirname, 'users.json');
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_dev_key_12345';
@@ -27,32 +26,30 @@ const saveUsers = (users) => {
 // --- CONTROLLERS ---
 
 const register = async (req, res) => {
-    const { email, password, name } = req.body;
+    const { username, pin } = req.body;
 
-    if (!email || !password || !name) {
-        return res.status(400).json({ message: 'Todos los campos son obligatorios' });
+    if (!username || !pin) {
+        return res.status(400).json({ message: 'Usuario y PIN son obligatorios' });
     }
 
-    // Password Validation Regex
-    // At least 8 chars, 1 letter, 1 number, 1 special char (broadened)
-    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&._\-])[A-Za-z\d@$!%*#?&._\-]{8,}$/;
-    if (!passwordRegex.test(password)) {
+    // PIN Validation: Exactly 4 digits
+    const pinRegex = /^\d{4}$/;
+    if (!pinRegex.test(pin)) {
         return res.status(400).json({
-            message: 'La contraseña debe tener al menos 8 caracteres, una letra, un número y un carácter especial (@$!%*#?&._-).'
+            message: 'El PIN debe ser de 4 dígitos numéricos.'
         });
     }
 
     const users = loadUsers();
-    if (users.find(u => u.email === email)) {
-        return res.status(400).json({ message: 'El usuario ya existe' });
+    if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
+        return res.status(400).json({ message: 'El nombre de usuario ya existe' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPin = await bcrypt.hash(pin, 10);
     const newUser = {
         id: Date.now().toString(),
-        email,
-        name,
-        password: hashedPassword,
+        username,
+        pin: hashedPin,
         createdAt: new Date().toISOString()
     };
 
@@ -60,86 +57,36 @@ const register = async (req, res) => {
     saveUsers(users);
 
     // Auto-login after register
-    const token = jwt.sign({ id: newUser.id, email: newUser.email }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: newUser.id, username: newUser.username }, JWT_SECRET, { expiresIn: '365d' }); // Long expiry
 
     res.status(201).json({
         message: 'Usuario registrado',
         token,
-        user: { id: newUser.id, name: newUser.name, email: newUser.email }
+        user: { id: newUser.id, name: newUser.username }
     });
 };
 
 const login = async (req, res) => {
-    const { email, password } = req.body;
+    const { username, pin } = req.body;
     const users = loadUsers();
-    const user = users.find(u => u.email === email);
+    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
 
     if (!user) {
-        return res.status(400).json({ message: 'Credenciales inválidas' });
+        return res.status(400).json({ message: 'Usuario no encontrado' });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = await bcrypt.compare(pin, user.pin);
     if (!isMatch) {
-        return res.status(400).json({ message: 'Credenciales inválidas' });
+        return res.status(400).json({ message: 'PIN incorrecto' });
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '365d' });
 
     res.json({
         message: 'Login exitoso',
         token,
-        user: { id: user.id, name: user.name, email: user.email }
+        user: { id: user.id, name: user.username }
     });
 };
 
-const forgotPassword = async (req, res) => {
-    const { email } = req.body;
-    const users = loadUsers();
-    const user = users.find(u => u.email === email);
-
-    if (!user) {
-        // Security: Don't reveal if user exists
-        return res.json({ message: 'Si el correo existe, recibirás instrucciones.' });
-    }
-
-    const resetToken = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '1h' });
-    user.resetToken = resetToken;
-    saveUsers(users);
-
-    await sendRecoveryEmail(email, resetToken);
-
-    res.json({ message: 'Si el correo existe, recibirás instrucciones.' });
-};
-
-const resetPassword = async (req, res) => {
-    const { token, newPassword } = req.body;
-
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        const users = loadUsers();
-        const user = users.find(u => u.id === decoded.id);
-
-        if (!user || user.resetToken !== token) {
-            return res.status(400).json({ message: 'Token inválido o expirado' });
-        }
-
-        // Validate new password
-        const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
-        if (!passwordRegex.test(newPassword)) {
-            return res.status(400).json({
-                message: 'La contraseña debe tener al menos 8 caracteres, una letra, un número y un carácter especial.'
-            });
-        }
-
-        user.password = await bcrypt.hash(newPassword, 10);
-        delete user.resetToken;
-        saveUsers(users);
-
-        res.json({ message: 'Contraseña actualizada correctamente' });
-
-    } catch (error) {
-        return res.status(400).json({ message: 'Token inválido o expirado' });
-    }
-};
-
-module.exports = { register, login, forgotPassword, resetPassword };
+module.exports = { register, login };

@@ -262,8 +262,8 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
     const handleBarcodeDetected = async (code: string) => {
         setIsLoadingProduct(true);
         try {
-            // Fetch from OpenFoodFacts
-            const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`);
+            // Fetch from OpenFoodFacts with Chile preference
+            const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json?cc=cl`);
             const data = await response.json();
 
             if (data.status === 1) {
@@ -277,6 +277,12 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
                     if (qStr.includes('ml')) setUnit('ml');
                     if (qStr.includes('kg')) setUnit('kg');
                     if (qStr.includes('g') && !qStr.includes('kg')) setUnit('g');
+                }
+
+                // Try to extract category hint
+                if (data.product.categories_tags && data.product.categories_tags.length > 0) {
+                    // This is a simple heuristic, mapped manually or just left for user
+                    // We could try to map 'en:beverages' to 'Bebidas', etc.
                 }
 
             } else {
@@ -307,8 +313,10 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
 
         searchTimeout.current = setTimeout(async () => {
             try {
-                // Fetch Suggestions from OpenFoodFacts Search API
-                const response = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(val)}&search_simple=1&action=process&json=1&page_size=5`);
+                // Fetch Suggestions from OpenFoodFacts Search API filtered by Chile
+                // We request specific fields to show in the UI
+                const fields = 'product_name,product_name_es,brands,image_small_url,categories_tags,quantity';
+                const response = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(val)}&search_simple=1&action=process&json=1&page_size=10&cc=cl&fields=${fields}`);
                 const data = await response.json();
 
                 if (data.products && data.products.length > 0) {
@@ -327,6 +335,16 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
     const handleSelectSuggestion = (product: any) => {
         const bestName = product.product_name_es || product.product_name || name;
         setName(bestName);
+
+        // Auto-fill other fields if available
+        if (product.quantity) {
+            const qStr = product.quantity.toLowerCase();
+            if (qStr.includes('l') && !qStr.includes('ml')) setUnit('L');
+            else if (qStr.includes('ml')) setUnit('ml');
+            else if (qStr.includes('kg')) setUnit('kg');
+            else if (qStr.includes('g')) setUnit('g');
+        }
+
         setShowSuggestions(false);
         setSuggestions([]);
     };

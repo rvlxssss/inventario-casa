@@ -1,57 +1,36 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 interface LoginProps {
-  onLogin: () => void;
-  onGoogleLogin: (response: any) => void;
+  onLogin?: () => void; // Optional now as we use context mainly
+  onGoogleLogin?: (response: any) => void; // Deprecated
 }
 
-type AuthMode = 'login' | 'register' | 'forgot';
+type AuthMode = 'login' | 'register';
 
-export const Login: React.FC<LoginProps> = ({ onLogin, onGoogleLogin }) => {
-  const { login, register, recoverPassword } = useAuth();
+export const Login: React.FC<LoginProps> = () => {
+  const { login, register } = useAuth();
   const [mode, setMode] = useState<AuthMode>('login');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   // Form State
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-
-  useEffect(() => {
-    // Initialize Google Button
-    if ((window as any).google && mode === 'login') {
-      try {
-        (window as any).google.accounts.id.initialize({
-          client_id: "YOUR_GOOGLE_CLIENT_ID",
-          callback: onGoogleLogin
-        });
-        (window as any).google.accounts.id.renderButton(
-          document.getElementById("googleBtn"),
-          { theme: "filled_black", size: "large", width: "100%", shape: "pill" }
-        );
-      } catch (e) {
-        console.error("Google Auth Error", e);
-      }
-    }
-  }, [onGoogleLogin, mode]);
+  const [username, setUsername] = useState('');
+  const [pin, setPin] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setSuccess(null);
     setIsLoading(true);
 
     try {
       if (mode === 'login') {
-        await login({ email, password });
+        await login({ username, pin });
       } else if (mode === 'register') {
-        await register({ email, password, name });
-      } else if (mode === 'forgot') {
-        await recoverPassword(email);
-        setSuccess('Si el correo existe, recibirás instrucciones.');
+        if (pin.length !== 4 || isNaN(Number(pin))) {
+          throw new Error('El PIN debe ser de 4 números.');
+        }
+        await register({ username, pin });
       }
     } catch (err: any) {
       setError(err.message || 'Ocurrió un error');
@@ -78,7 +57,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onGoogleLogin }) => {
         <p className="text-text-muted text-center mb-8 text-sm">
           {mode === 'login' && 'Tu inventario inteligente'}
           {mode === 'register' && 'Crea tu cuenta gratis'}
-          {mode === 'forgot' && 'Recupera tu acceso'}
         </p>
 
         {/* Auth Card */}
@@ -90,56 +68,35 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onGoogleLogin }) => {
                 {error}
               </div>
             )}
-            {success && (
-              <div className="p-3 rounded-xl bg-success/20 border border-success/50 text-success text-xs text-center">
-                {success}
-              </div>
-            )}
-
-            {mode === 'register' && (
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-text-muted ml-1">Nombre</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  className="w-full h-12 px-4 bg-surface-highlight/50 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-                  placeholder="Tu nombre"
-                  required
-                />
-              </div>
-            )}
 
             <div className="space-y-1">
-              <label className="text-xs font-medium text-text-muted ml-1">Correo Electrónico</label>
+              <label className="text-xs font-medium text-text-muted ml-1">Nombre de Usuario</label>
               <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
+                type="text"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
                 className="w-full h-12 px-4 bg-surface-highlight/50 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-                placeholder="ejemplo@correo.com"
+                placeholder="Ej: JuanPerez"
                 required
               />
             </div>
 
-            {mode !== 'forgot' && (
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-text-muted ml-1">Contraseña</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  className="w-full h-12 px-4 bg-surface-highlight/50 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-                  placeholder="••••••••"
-                  required
-                />
-                {mode === 'register' && (
-                  <p className="text-[10px] text-text-muted px-1">
-                    Mínimo 8 caracteres, letras, números y símbolos.
-                  </p>
-                )}
-              </div>
-            )}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-text-muted ml-1">PIN de Acceso (4 dígitos)</label>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                value={pin}
+                onChange={e => {
+                  const val = e.target.value.replace(/\D/g, '');
+                  if (val.length <= 4) setPin(val);
+                }}
+                className="w-full h-12 px-4 bg-surface-highlight/50 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all tracking-[0.5em] text-center font-bold text-lg placeholder-tracking-normal"
+                placeholder="••••"
+                required
+              />
+            </div>
 
             <button
               type="submit"
@@ -150,49 +107,24 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onGoogleLogin }) => {
                 <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  {mode === 'login' && 'Iniciar Sesión'}
+                  {mode === 'login' && 'Entrar'}
                   {mode === 'register' && 'Crear Cuenta'}
-                  {mode === 'forgot' && 'Enviar Correo'}
                 </>
               )}
             </button>
           </form>
 
-          {mode === 'login' && (
-            <>
-              <div className="relative flex py-4 items-center">
-                <div className="flex-grow border-t border-white/10"></div>
-                <span className="flex-shrink-0 mx-4 text-text-muted text-[10px] uppercase tracking-wider">O continúa con</span>
-                <div className="flex-grow border-t border-white/10"></div>
-              </div>
-              <div id="googleBtn" className="w-full h-12 flex justify-center mb-4"></div>
-
-              <button
-                onClick={onLogin}
-                className="w-full h-12 bg-surface-highlight hover:bg-surface border border-white/5 rounded-xl text-white font-semibold transition-all active:scale-95 flex items-center justify-center gap-2 group"
-              >
-                <span className="material-symbols-outlined text-text-muted group-hover:text-white transition-colors">person</span>
-                <span>Acceso Invitado</span>
-              </button>
-            </>
-          )}
-
           <div className="mt-6 flex flex-col items-center gap-2 text-sm">
             {mode === 'login' && (
-              <>
-                <button onClick={() => setMode('forgot')} className="text-primary hover:underline">
-                  ¿Olvidaste tu contraseña?
+              <p className="text-text-muted">
+                ¿No tienes cuenta?{' '}
+                <button onClick={() => setMode('register')} className="text-white font-bold hover:underline">
+                  Regístrate
                 </button>
-                <p className="text-text-muted">
-                  ¿No tienes cuenta?{' '}
-                  <button onClick={() => setMode('register')} className="text-white font-bold hover:underline">
-                    Regístrate
-                  </button>
-                </p>
-              </>
+              </p>
             )}
 
-            {(mode === 'register' || mode === 'forgot') && (
+            {mode === 'register' && (
               <button onClick={() => setMode('login')} className="text-text-muted hover:text-white transition-colors flex items-center gap-1">
                 <span className="material-symbols-outlined text-sm">arrow_back</span>
                 Volver al inicio

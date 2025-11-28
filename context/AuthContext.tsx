@@ -1,7 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import { User } from '../types';
 import { loadState, saveState } from '../utils/storage';
-import { decodeJwt } from '../utils/auth';
+import { User } from '../types';
+import { loadState, saveState } from '../utils/storage';
+// Actually, I should check if decodeJwt is used. It was used in loginGoogle which I removed. So it should be removed.
+// The previous edit added User and loadState again. I need to remove the duplicates.
 
 const INITIAL_MEMBERS: User[] = [];
 
@@ -12,16 +15,12 @@ interface AuthContextType {
     pendingInvite: boolean;
     setPendingInvite: (pending: boolean) => void;
     setMembers: React.Dispatch<React.SetStateAction<User[]>>;
-    loginManual: () => void;
-    loginGoogle: (credentialResponse: any) => void;
     logout: () => void;
     joinTeam: (name: string) => void;
     updateUser: (user: User) => void;
     // New Auth Methods
-    register: (data: any) => Promise<void>;
-    login: (data: any) => Promise<void>;
-    recoverPassword: (email: string) => Promise<void>;
-    resetPassword: (token: string, password: string) => Promise<void>;
+    register: (data: { username: string; pin: string }) => Promise<void>;
+    login: (data: { username: string; pin: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -62,7 +61,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // --- API HELPERS ---
     const SERVER_URL = 'http://localhost:3001'; // Should be env var
 
-    const register = async (data: any) => {
+    const register = async (data: { username: string; pin: string }) => {
         const res = await fetch(`${SERVER_URL}/api/auth/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -75,7 +74,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         handleAuthSuccess(json);
     };
 
-    const login = async (data: any) => {
+    const login = async (data: { username: string; pin: string }) => {
         const res = await fetch(`${SERVER_URL}/api/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -87,34 +86,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         handleAuthSuccess(json);
     };
 
-    const recoverPassword = async (email: string) => {
-        const res = await fetch(`${SERVER_URL}/api/auth/forgot-password`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email })
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.message);
-        // We don't throw if email not found for security, usually just show success message
-    };
-
-    const resetPassword = async (token: string, password: string) => {
-        const res = await fetch(`${SERVER_URL}/api/auth/reset-password`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token, newPassword: password })
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.message);
-    };
-
     const handleAuthSuccess = (data: any) => {
         setAuthToken(data.token);
 
         const user: User = {
             id: data.user.id,
             name: data.user.name,
-            email: data.user.email,
             avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.name}`,
             role: 'owner', // Default role for new signups
             isCurrentUser: true
@@ -131,65 +108,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setLoggedUserId(user.id);
     };
 
-    // --- LEGACY METHODS ---
-    const loginManual = () => {
-        // Deprecated but kept for compatibility if needed
-        if (members.length > 0) {
-            const userToLogin = members.find(m => m.isCurrentUser) || members[0];
-            setLoggedUserId(userToLogin.id);
-        } else {
-            const demoUser: User = {
-                id: 'owner_' + Date.now(),
-                name: 'Administrador',
-                email: 'admin@pantrypal.com',
-                avatarUrl: '',
-                role: 'owner',
-                isCurrentUser: true
-            };
-            setMembers([demoUser]);
-            setLoggedUserId(demoUser.id);
-        }
-    };
-
-    const loginGoogle = (credentialResponse: any) => {
-        const token = credentialResponse.credential;
-        const decoded = decodeJwt(token);
-
-        if (decoded) {
-            const existingUser = members.find(m => m.email === decoded.email || m.id === decoded.sub);
-
-            if (existingUser) {
-                setLoggedUserId(existingUser.id);
-                const updatedMembers = members.map(m => m.id === existingUser.id ? {
-                    ...m,
-                    name: decoded.name,
-                    avatarUrl: decoded.picture,
-                    isCurrentUser: true
-                } : { ...m, isCurrentUser: false });
-                setMembers(updatedMembers);
-            } else {
-                const newUser: User = {
-                    id: decoded.sub,
-                    name: decoded.name,
-                    email: decoded.email,
-                    avatarUrl: decoded.picture,
-                    role: 'owner',
-                    isCurrentUser: true
-                };
-                setMembers(prev => [...prev.map(m => ({ ...m, isCurrentUser: false })), newUser]);
-                setLoggedUserId(newUser.id);
-            }
-        }
-    };
-
     const logout = () => {
         setLoggedUserId(null);
         setAuthToken(null);
         localStorage.removeItem('loggedUserId');
         localStorage.removeItem('authToken');
-        if ((window as any).google && (window as any).google.accounts) {
-            (window as any).google.accounts.id.disableAutoSelect();
-        }
     };
 
     const joinTeam = (name: string) => {
@@ -197,7 +120,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const newUser: User = {
             id: newUserId,
             name: name,
-            email: `${name.toLowerCase().replace(/\s+/g, '.')}@demo.com`,
             avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
             role: 'editor',
             isCurrentUser: true
@@ -215,8 +137,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return (
         <AuthContext.Provider value={{
             members, currentUser, isAuthenticated, pendingInvite, setPendingInvite,
-            setMembers, loginManual, loginGoogle, logout, joinTeam, updateUser,
-            register, login, recoverPassword, resetPassword
+            setMembers, logout, joinTeam, updateUser,
+            register, login
         }}>
             {children}
         </AuthContext.Provider>
