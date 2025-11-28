@@ -1,8 +1,9 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { User } from '../types';
+import { useInventory } from '../context/InventoryContext';
+import { saveState } from '../utils/storage';
 
 interface ProfileProps {
     user: User;
@@ -125,7 +126,13 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, us
 
 export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }) => {
     const navigate = useNavigate();
+    const {
+        products, categories, expenses, transactions,
+        setProducts, setCategories, setExpenses, setTransactions
+    } = useInventory();
+
     const [isEditOpen, setIsEditOpen] = useState(false);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [notifications, setNotifications] = useState({
         expiry: true,
         stock: false
@@ -150,6 +157,67 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
 
     const handleSupport = () => {
         alert("Soporte: Enviando a la página de ayuda...");
+    };
+
+    const handleExport = () => {
+        const data = {
+            products,
+            categories,
+            expenses,
+            transactions,
+            version: '1.0',
+            exportDate: new Date().toISOString()
+        };
+
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `pantrypal_backup_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const content = e.target?.result as string;
+                const data = JSON.parse(content);
+
+                // Basic validation
+                if (!data.products || !data.categories) {
+                    throw new Error('Formato de archivo inválido');
+                }
+
+                if (window.confirm('¿Estás seguro de importar estos datos? Esto reemplazará tu inventario actual.')) {
+                    // Update State
+                    setProducts(data.products);
+                    setCategories(data.categories);
+                    setExpenses(data.expenses || {});
+                    setTransactions(data.transactions || []);
+
+                    // Update Storage
+                    saveState('products', data.products);
+                    saveState('categories', data.categories);
+                    saveState('expenses', data.expenses || {});
+                    saveState('transactions', data.transactions || []);
+
+                    alert('Datos importados correctamente');
+                }
+            } catch (error) {
+                console.error('Error importing data:', error);
+                alert('Error al importar el archivo. Asegúrate de que sea un respaldo válido.');
+            }
+            // Reset input
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        };
+        reader.readAsText(file);
     };
 
     return (
@@ -251,6 +319,45 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
                                 <div className="peer h-6 w-11 rounded-full bg-surface-highlight border border-white/10 after:absolute after:start-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                {/* Data Management */}
+                <div>
+                    <h2 className="text-text-muted text-xs font-bold uppercase tracking-wider px-2 pb-2">Gestión de Datos</h2>
+                    <div className="glass rounded-2xl overflow-hidden shadow-sm border border-white/5">
+                        <button
+                            onClick={handleExport}
+                            className="w-full flex items-center gap-4 px-4 min-h-[60px] justify-between border-b border-white/5 hover:bg-white/5 transition-colors text-left"
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="text-white flex items-center justify-center rounded-lg bg-white/10 shrink-0 size-10">
+                                    <span className="material-symbols-outlined">download</span>
+                                </div>
+                                <p className="text-white text-base font-medium flex-1">Exportar Copia de Seguridad</p>
+                            </div>
+                            <span className="material-symbols-outlined text-text-muted">chevron_right</span>
+                        </button>
+
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-full flex items-center gap-4 px-4 min-h-[60px] justify-between hover:bg-white/5 transition-colors text-left"
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="text-white flex items-center justify-center rounded-lg bg-white/10 shrink-0 size-10">
+                                    <span className="material-symbols-outlined">upload</span>
+                                </div>
+                                <p className="text-white text-base font-medium flex-1">Importar Copia de Seguridad</p>
+                            </div>
+                            <span className="material-symbols-outlined text-text-muted">chevron_right</span>
+                        </button>
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleImport}
+                            accept=".json"
+                            className="hidden"
+                        />
                     </div>
                 </div>
 

@@ -177,6 +177,8 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
     const [showSuggestions, setShowSuggestions] = useState(false);
     const searchTimeout = useRef<any>(null);
 
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
     // Load data if editing
     useEffect(() => {
         if (editingProduct) {
@@ -208,26 +210,38 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!name || !categoryId) return;
+        setIsSubmitting(true); // Set submitting state to true
 
-        const productData: Product = {
-            id: editingProduct ? editingProduct.id : Date.now().toString(),
-            name,
-            quantity: parseFloat(quantity),
-            unit,
-            expiryDate,
-            categoryId,
-            status: calculateStatus(expiryDate),
-            cost: parseFloat(totalCost) || 0,
-            addedDate: editingProduct ? editingProduct.addedDate : new Date().toISOString()
-        };
-
-        if (editingProduct) {
-            onUpdate(productData);
-        } else {
-            onAdd(productData);
+        if (!name || !categoryId) {
+            setIsSubmitting(false); // Reset if validation fails
+            return;
         }
-        navigate(-1);
+
+        try {
+            const productData: Product = {
+                id: editingProduct ? editingProduct.id : Date.now().toString(),
+                name,
+                quantity: parseFloat(quantity),
+                unit,
+                expiryDate,
+                categoryId,
+                status: calculateStatus(expiryDate),
+                cost: parseFloat(totalCost) || 0,
+                addedDate: editingProduct ? editingProduct.addedDate : new Date().toISOString()
+            };
+
+            if (editingProduct) {
+                onUpdate(productData);
+            } else {
+                onAdd(productData);
+            }
+            navigate(-1);
+        } catch (error) {
+            console.error("Error submitting product:", error);
+            // Optionally show an error message to the user
+        } finally {
+            setIsSubmitting(false); // Always reset submitting state
+        }
     };
 
     const calculateStatus = (dateString: string): Product['status'] => {
@@ -512,9 +526,10 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
 
                     <button
                         type="submit"
-                        className="w-full h-14 rounded-2xl bg-white text-black font-bold text-lg hover:bg-gray-200 active:scale-[0.98] transition-all shadow-lg shadow-white/10 mt-8"
+                        disabled={isSubmitting}
+                        className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/25 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {editingProduct ? 'Actualizar Producto' : 'Guardar Producto'}
+                        {isSubmitting ? 'Guardando...' : (editingProduct ? 'Actualizar Producto' : 'Guardar Producto')}
                     </button>
                 </form>
             </main>

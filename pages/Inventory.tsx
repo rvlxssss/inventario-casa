@@ -137,16 +137,32 @@ const ExpensesModal: React.FC<{
 }> = ({ isOpen, onClose, transactions }) => {
     if (!isOpen) return null;
 
-    // Group transactions by month
-    const groupedTransactions = transactions.reduce((acc, t) => {
-        const date = new Date(t.date);
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(t);
-        return acc;
-    }, {} as Record<string, Transaction[]>);
+    const [selectedMonth, setSelectedMonth] = useState(() => {
+        const date = new Date();
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    });
 
-    const sortedKeys = Object.keys(groupedTransactions).sort().reverse();
+    // Group transactions by month
+    const groupedTransactions = useMemo(() => {
+        return transactions.reduce((acc, t) => {
+            const date = new Date(t.date);
+            const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(t);
+            return acc;
+        }, {} as Record<string, Transaction[]>);
+    }, [transactions]);
+
+    const sortedKeys = useMemo(() => {
+        const keys = Object.keys(groupedTransactions).sort().reverse();
+        // Ensure current month is in the list even if no transactions
+        const date = new Date();
+        const currentMonthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        if (!keys.includes(currentMonthKey)) {
+            keys.unshift(currentMonthKey);
+        }
+        return keys;
+    }, [groupedTransactions]);
 
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
@@ -158,63 +174,84 @@ const ExpensesModal: React.FC<{
         return date.toLocaleString('es-CL', { month: 'long', year: 'numeric' });
     };
 
+    const currentMonthTransactions = useMemo(() => {
+        return (groupedTransactions[selectedMonth] || [])
+            .filter(t => t.type === 'expense')
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [groupedTransactions, selectedMonth]);
+
+    const currentMonthTotal = useMemo(() => {
+        return currentMonthTransactions.reduce((sum, t) => sum + t.amount, 0);
+    }, [currentMonthTransactions]);
+
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
             <div className="glass w-full max-w-md rounded-3xl p-6 shadow-2xl border border-white/10 flex flex-col max-h-[85vh]">
                 <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xl font-bold text-white">Historial de Movimientos</h3>
+                    <h3 className="text-xl font-bold text-white">Historial de Gastos</h3>
                     <button onClick={onClose} className="text-text-muted hover:text-white">
                         <span className="material-symbols-outlined">close</span>
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto space-y-6 pr-2 custom-scrollbar">
-                    {sortedKeys.length === 0 ? (
-                        <p className="text-text-muted text-center py-8">No hay registros de movimientos.</p>
+                {/* Month Selector */}
+                <div className="mb-6">
+                    <div className="relative">
+                        <select
+                            value={selectedMonth}
+                            onChange={(e) => setSelectedMonth(e.target.value)}
+                            className="w-full appearance-none bg-surface-highlight border border-white/10 rounded-xl px-4 py-3 text-white font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 capitalize"
+                        >
+                            {sortedKeys.map(key => (
+                                <option key={key} value={key} className="bg-[#1e1e1e] text-white">
+                                    {getMonthName(key)}
+                                </option>
+                            ))}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-white">
+                            <span className="material-symbols-outlined">expand_more</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Summary Card */}
+                <div className="bg-surface-highlight/50 rounded-2xl p-4 mb-6 border border-white/5 flex items-center justify-between">
+                    <div>
+                        <p className="text-xs text-text-muted uppercase font-bold tracking-wider mb-1">Total del Mes</p>
+                        <p className="text-2xl font-bold text-white">{formatCurrency(currentMonthTotal)}</p>
+                    </div>
+                    <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">
+                        <span className="material-symbols-outlined">calendar_month</span>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                    {currentMonthTransactions.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-10 text-text-muted">
+                            <span className="material-symbols-outlined text-4xl mb-2 opacity-20">receipt_long</span>
+                            <p>No hay gastos registrados este mes.</p>
+                        </div>
                     ) : (
-                        sortedKeys.map(key => {
-                            const monthTransactions = groupedTransactions[key]
-                                .filter(t => t.type === 'expense')
-                                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-                            const totalExpense = monthTransactions.reduce((sum, t) => sum + t.amount, 0);
-
-                            if (monthTransactions.length === 0) return null;
-
-                            return (
-                                <div key={key} className="space-y-3">
-                                    <div className="flex items-center justify-between sticky top-0 bg-[#18181b] z-10 py-2 border-b border-white/10">
-                                        <h4 className="text-white font-bold capitalize text-lg">{getMonthName(key)}</h4>
-                                        <span className="text-xs font-bold bg-primary/20 text-primary px-2 py-1 rounded-lg">
-                                            Gasto: {formatCurrency(totalExpense)}
-                                        </span>
+                        currentMonthTransactions.map(t => (
+                            <div key={t.id} className="flex items-center justify-between p-3 rounded-xl bg-surface-highlight/30 border border-white/5">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-primary/20 text-primary">
+                                        <span className="material-symbols-outlined text-sm">shopping_cart</span>
                                     </div>
-
-                                    <div className="space-y-2">
-                                        {monthTransactions.map(t => (
-                                            <div key={t.id} className="flex items-center justify-between p-3 rounded-xl bg-surface-highlight/30 border border-white/5">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-primary/20 text-primary">
-                                                        <span className="material-symbols-outlined text-sm">shopping_cart</span>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm font-medium text-white">{t.productName}</p>
-                                                        <p className="text-[10px] text-text-muted">
-                                                            {new Date(t.date).toLocaleDateString()} • Agregado: {t.quantity}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-sm font-bold text-white">
-                                                        {formatCurrency(t.amount)}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ))}
+                                    <div>
+                                        <p className="text-sm font-medium text-white">{t.productName}</p>
+                                        <p className="text-[10px] text-text-muted">
+                                            {new Date(t.date).toLocaleDateString()} • Agregado: {t.quantity}
+                                        </p>
                                     </div>
                                 </div>
-                            );
-                        })
+                                <div className="text-right">
+                                    <p className="text-sm font-bold text-white">
+                                        {formatCurrency(t.amount)}
+                                    </p>
+                                </div>
+                            </div>
+                        ))
                     )}
                 </div>
             </div>
@@ -235,6 +272,10 @@ export const Inventory: React.FC<InventoryProps> = ({
         const date = new Date();
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         return expenses[key] || 0;
+    };
+
+    const getCurrentMonthName = () => {
+        return new Date().toLocaleString('es-CL', { month: 'long' });
     };
 
     const formatCurrency = (amount: number) => {
@@ -326,7 +367,7 @@ export const Inventory: React.FC<InventoryProps> = ({
                             <span className="material-symbols-outlined">payments</span>
                         </div>
                         <div>
-                            <p className="text-xs text-text-muted uppercase font-bold tracking-wider">Gasto Mensual</p>
+                            <p className="text-xs text-text-muted uppercase font-bold tracking-wider">Gasto {getCurrentMonthName()}</p>
                             <p className="text-xl font-bold text-white">{formatCurrency(getCurrentMonthExpense())}</p>
                         </div>
                     </div>

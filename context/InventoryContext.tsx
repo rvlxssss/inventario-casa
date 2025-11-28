@@ -29,8 +29,10 @@ interface InventoryContextType {
     deleteCategory: (id: string) => void;
     registerSyncCallback: (cb: (action: any) => void) => void;
     expenses: Record<string, number>;
+    setExpenses: React.Dispatch<React.SetStateAction<Record<string, number>>>;
     addExpense: (amount: number) => void;
     transactions: Transaction[];
+    setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
 }
 
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
@@ -185,8 +187,8 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
             addProduct, updateProduct, deleteProduct,
             addCategory, updateCategory, deleteCategory,
             registerSyncCallback,
-            expenses, addExpense,
-            transactions
+            expenses, setExpenses, addExpense,
+            transactions, setTransactions
         }}>
             {children}
         </InventoryContext.Provider>
