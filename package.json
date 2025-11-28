@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@capacitor/android": "^5.7.8",
+    "@capacitor/camera": "^5.0.10",
     "@capacitor/core": "^5.7.8",
     "@capacitor/local-notifications": "^5.0.8",
     "dotenv": "^17.2.3",
