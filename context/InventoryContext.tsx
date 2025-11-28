@@ -104,21 +104,26 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
 
                 // Quantity Increased -> Expense
                 if (diff > 0) {
-                    let addedCost = 0;
+                    let unitCost = 0;
+                    let expense = 0;
 
-                    // Scenario A: User updated cost explicitly
-                    if (updatedProduct.cost !== undefined && oldProduct.cost !== undefined && updatedProduct.cost > oldProduct.cost) {
-                        addedCost = updatedProduct.cost - oldProduct.cost;
+                    // Scenario A: Cost increased (User likely updated it via Calculator or Manual)
+                    // We assume the new Total Cost reflects the new Unit Price for ALL items (revaluation).
+                    // Expense is the cost of the ADDED items at this new Unit Price.
+                    if (updatedProduct.cost !== undefined && updatedProduct.cost > (oldProduct.cost || 0)) {
+                        unitCost = updatedProduct.cost / updatedProduct.quantity;
+                        expense = unitCost * diff;
                     }
-                    // Scenario B: User didn't update cost field, infer unit cost
+                    // Scenario B: Cost didn't increase (Quick Add via + button)
+                    // Use the old Unit Price to calculate expense and ADD it to the total cost.
                     else if (oldProduct.cost && oldProduct.quantity > 0) {
-                        const unitCost = oldProduct.cost / oldProduct.quantity;
-                        addedCost = unitCost * diff;
-                        finalProduct.cost = (oldProduct.cost || 0) + addedCost;
+                        unitCost = oldProduct.cost / oldProduct.quantity;
+                        expense = unitCost * diff;
+                        finalProduct.cost = (oldProduct.cost || 0) + expense;
                     }
 
-                    if (addedCost > 0) {
-                        addTransaction('expense', finalProduct, diff, addedCost);
+                    if (expense > 0) {
+                        addTransaction('expense', finalProduct, diff, expense);
                     }
                 }
                 // Quantity Decreased -> Usage

@@ -161,7 +161,12 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
 
     // Price Calculator State
     const [useUnitPrice, setUseUnitPrice] = useState(false);
-    const [pricePerPackage, setPricePerPackage] = useState('');
+    const [pricePerPackage, setPricePerPackage] = useState(() => {
+        if (editingProduct && editingProduct.cost && editingProduct.quantity > 0) {
+            return (editingProduct.cost / editingProduct.quantity).toFixed(0);
+        }
+        return '';
+    });
     const [totalCost, setTotalCost] = useState('');
 
     const [isScannerOpen, setIsScannerOpen] = useState(false);
