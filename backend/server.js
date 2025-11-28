@@ -208,6 +208,15 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`Sync Server running on port ${PORT}`);
-});
+
+if (process.env.VERCEL) {
+  // Vercel Serverless Environment
+  module.exports = (req, res) => {
+    server.emit('request', req, res);
+  };
+} else {
+  // Local / VPS Environment
+  server.listen(PORT, () => {
+    console.log(`Sync Server running on port ${PORT}`);
+  });
+}
