@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { User } from '../types';
 import { Layout } from '../components/Layout';
 
@@ -329,7 +328,7 @@ export const ManageAccess: React.FC<ManageAccessProps> = ({
     onUpdateServerUrl,
     isConnected
 }) => {
-    const navigate = useNavigate();
+
     const [isInviteOpen, setIsInviteOpen] = useState(false);
     const [isSyncOpen, setIsSyncOpen] = useState(false);
     const [isServerConfigOpen, setIsServerConfigOpen] = useState(false);
