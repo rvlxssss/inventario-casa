@@ -270,6 +270,11 @@ export const Inventory: React.FC<InventoryProps> = ({
 
                             {/* Info */}
                             <div className="flex-1 min-w-0">
+                                {product.quantity <= 3 && (
+                                    <p className="text-[10px] font-bold text-warning mb-0.5 uppercase tracking-wider animate-pulse">
+                                        ¡Stock Bajo!
+                                    </p>
+                                )}
                                 <h3 className="font-semibold text-white truncate">{product.name}</h3>
                                 <div className="flex items-center gap-2 text-xs text-text-muted mt-1">
                                     <div className="flex items-center bg-surface-highlight rounded-md border border-white/5 overflow-hidden" onClick={e => e.stopPropagation()}>
