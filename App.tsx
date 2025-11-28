@@ -70,7 +70,9 @@ const MainApp: React.FC = () => {
         pendingInvite, setPendingInvite
     } = useAuth();
 
-    const [serverUrl, setServerUrl] = useState<string>(() => loadState('serverUrl', 'http://localhost:3001'));
+    const [serverUrl, setServerUrl] = useState<string>(() => loadState('serverUrl', import.meta.env.PROD
+        ? 'https://inventario-casa-a7gtin49a-matias-projects-027cf7e3.vercel.app'
+        : 'http://localhost:3001'));
 
     // Initialize Sync Hook
     const { isConnected, syncCode, createSession, joinSession, setSyncCode } = useSync(serverUrl);

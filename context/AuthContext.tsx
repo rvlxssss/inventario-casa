@@ -57,7 +57,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const isAuthenticated = !!loggedUserId;
 
     // --- API HELPERS ---
-    const SERVER_URL = 'http://localhost:3001'; // Should be env var
+    const SERVER_URL = import.meta.env.PROD
+        ? 'https://inventario-casa-a7gtin49a-matias-projects-027cf7e3.vercel.app'
+        : 'http://localhost:3001';
 
     const register = async (data: { username: string; pin: string }) => {
         const res = await fetch(`${SERVER_URL}/api/auth/register`, {
