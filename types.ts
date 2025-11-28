@@ -32,3 +32,13 @@ export interface NotificationSetting {
     label: string;
     enabled: boolean;
 }
+
+export interface Transaction {
+    id: string;
+    date: string; // ISO string
+    type: 'expense' | 'usage';
+    productId: string;
+    productName: string;
+    quantity: number;
+    amount: number; // Cost for expense, 0 or value for usage
+}

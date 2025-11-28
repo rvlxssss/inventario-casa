@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Product, Category } from '../types';
+import { Product, Category, Transaction } from '../types';
 import { loadState, saveState } from '../utils/storage';
 
 // Initial Categories
@@ -30,6 +30,7 @@ interface InventoryContextType {
     registerSyncCallback: (cb: (action: any) => void) => void;
     expenses: Record<string, number>;
     addExpense: (amount: number) => void;
+    transactions: Transaction[];
 }
 
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
@@ -38,11 +39,13 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
     const [products, setProducts] = useState<Product[]>(() => loadState('products', INITIAL_PRODUCTS));
     const [categories, setCategories] = useState<Category[]>(() => loadState('categories', INITIAL_CATEGORIES));
     const [expenses, setExpenses] = useState<Record<string, number>>(() => loadState('expenses', {}));
+    const [transactions, setTransactions] = useState<Transaction[]>(() => loadState('transactions', []));
 
     // Persistence
     useEffect(() => { saveState('products', products); }, [products]);
     useEffect(() => { saveState('categories', categories); }, [categories]);
     useEffect(() => { saveState('expenses', expenses); }, [expenses]);
+    useEffect(() => { saveState('transactions', transactions); }, [transactions]);
 
     const syncCallbackRef = React.useRef<((action: any) => void) | null>(null);
 
@@ -50,21 +53,43 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
         syncCallbackRef.current = cb;
     };
 
+    const addTransaction = (type: 'expense' | 'usage', product: Product, quantity: number, amount: number) => {
+        const transaction: Transaction = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            date: new Date().toISOString(),
+            type,
+            productId: product.id,
+            productName: product.name,
+            quantity,
+            amount
+        };
+        setTransactions(prev => [transaction, ...prev]);
+
+        // Update monthly expenses total if it's an expense
+        if (type === 'expense') {
+            const date = new Date();
+            const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            setExpenses(prev => ({
+                ...prev,
+                [key]: (prev[key] || 0) + amount
+            }));
+        }
+    };
+
+    // Legacy support for direct expense adding (if needed)
     const addExpense = (amount: number) => {
         const date = new Date();
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         setExpenses(prev => ({
             ...prev,
             [key]: (prev[key] || 0) + amount
         }));
-        // We could sync expenses too, but let's keep it local or simple for now. 
-        // If we want to sync, we need a SYNC_EXPENSE action.
     };
 
     const addProduct = (product: Product) => {
         setProducts(prev => [product, ...prev]);
-        if (product.cost) {
-            addExpense(product.cost);
+        if (product.cost && product.cost > 0) {
+            addTransaction('expense', product, product.quantity, product.cost);
         }
         syncCallbackRef.current?.({ type: 'ADD_PRODUCT', payload: product });
     };
@@ -72,52 +97,42 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
     const updateProduct = (updatedProduct: Product) => {
         setProducts(prev => {
             const oldProduct = prev.find(p => p.id === updatedProduct.id);
-
-            // Logic to update cost and expenses if quantity changed
             let finalProduct = { ...updatedProduct };
 
             if (oldProduct) {
-                // If quantity increased
-                if (updatedProduct.quantity > oldProduct.quantity) {
-                    const diff = updatedProduct.quantity - oldProduct.quantity;
-                    // Calculate unit cost from old product
-                    // If old quantity was 0, we can't calculate unit cost from it.
-                    // We rely on the fact that if quantity was 0, hopefully cost was 0 or we use the last known unit cost?
-                    // For simplicity, if oldQuantity > 0, unitCost = oldCost / oldQuantity.
-                    // If oldQuantity === 0, we assume the user is just adding back stock. 
-                    // If the user didn't update the cost in the UI, we might be in trouble.
-                    // But typically +/- buttons are used for small adjustments.
+                const diff = updatedProduct.quantity - oldProduct.quantity;
 
-                    let unitCost = 0;
-                    if (oldProduct.quantity > 0 && oldProduct.cost) {
-                        unitCost = oldProduct.cost / oldProduct.quantity;
-                    } else if (updatedProduct.cost && updatedProduct.quantity > 0) {
-                        // If it was 0, maybe the new product has a cost set? 
-                        // If coming from +/- button, updatedProduct.cost is same as oldProduct.cost (which might be 0 or residual).
-                        // Let's assume if quantity was 0, we can't guess the price unless we store unitPrice.
-                        // For now, let's only do this if oldQuantity > 0.
-                        unitCost = 0;
+                // Quantity Increased -> Expense
+                if (diff > 0) {
+                    let addedCost = 0;
+
+                    // Scenario A: User updated cost explicitly
+                    if (updatedProduct.cost !== undefined && oldProduct.cost !== undefined && updatedProduct.cost > oldProduct.cost) {
+                        addedCost = updatedProduct.cost - oldProduct.cost;
                     }
-
-                    if (unitCost > 0) {
-                        const addedCost = unitCost * diff;
-                        addExpense(addedCost);
-                        // Update total cost of the product
+                    // Scenario B: User didn't update cost field, infer unit cost
+                    else if (oldProduct.cost && oldProduct.quantity > 0) {
+                        const unitCost = oldProduct.cost / oldProduct.quantity;
+                        addedCost = unitCost * diff;
                         finalProduct.cost = (oldProduct.cost || 0) + addedCost;
                     }
+
+                    if (addedCost > 0) {
+                        addTransaction('expense', finalProduct, diff, addedCost);
+                    }
                 }
-                // If quantity decreased
-                else if (updatedProduct.quantity < oldProduct.quantity) {
-                    // We don't refund expenses.
-                    // But we should decrease the asset value (product.cost).
-                    const diff = oldProduct.quantity - updatedProduct.quantity;
-                    let unitCost = 0;
-                    if (oldProduct.quantity > 0 && oldProduct.cost) {
-                        unitCost = oldProduct.cost / oldProduct.quantity;
+                // Quantity Decreased -> Usage
+                else if (diff < 0) {
+                    const consumedQty = Math.abs(diff);
+                    let consumedValue = 0;
+
+                    if (oldProduct.cost && oldProduct.quantity > 0) {
+                        const unitCost = oldProduct.cost / oldProduct.quantity;
+                        consumedValue = unitCost * consumedQty;
+                        finalProduct.cost = Math.max(0, oldProduct.cost - consumedValue);
                     }
-                    if (unitCost > 0) {
-                        finalProduct.cost = Math.max(0, (oldProduct.cost || 0) - (unitCost * diff));
-                    }
+
+                    addTransaction('usage', finalProduct, consumedQty, consumedValue);
                 }
             }
 
@@ -153,7 +168,8 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
             addProduct, updateProduct, deleteProduct,
             addCategory, updateCategory, deleteCategory,
             registerSyncCallback,
-            expenses, addExpense
+            expenses, addExpense,
+            transactions
         }}>
             {children}
         </InventoryContext.Provider>

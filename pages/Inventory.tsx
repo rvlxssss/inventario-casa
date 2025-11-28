@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Product, Category } from '../types';
+import { Product, Category, Transaction } from '../types';
 import { Layout } from '../components/Layout';
 
 interface InventoryProps {
@@ -13,6 +13,7 @@ interface InventoryProps {
     onDeleteCategory: (id: string) => void;
     userRole: 'owner' | 'editor' | 'viewer';
     expenses: Record<string, number>;
+    transactions: Transaction[];
 }
 
 const CategoryModal: React.FC<{
@@ -132,11 +133,20 @@ const CategoryModal: React.FC<{
 const ExpensesModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
-    expenses: Record<string, number>;
-}> = ({ isOpen, onClose, expenses }) => {
+    transactions: Transaction[];
+}> = ({ isOpen, onClose, transactions }) => {
     if (!isOpen) return null;
 
-    const sortedKeys = Object.keys(expenses).sort().reverse();
+    // Group transactions by month
+    const groupedTransactions = transactions.reduce((acc, t) => {
+        const date = new Date(t.date);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(t);
+        return acc;
+    }, {} as Record<string, Transaction[]>);
+
+    const sortedKeys = Object.keys(groupedTransactions).sort().reverse();
 
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
@@ -150,27 +160,60 @@ const ExpensesModal: React.FC<{
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-            <div className="glass w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-white/10 flex flex-col max-h-[80vh]">
+            <div className="glass w-full max-w-md rounded-3xl p-6 shadow-2xl border border-white/10 flex flex-col max-h-[85vh]">
                 <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xl font-bold text-white">Historial de Gastos</h3>
+                    <h3 className="text-xl font-bold text-white">Historial de Movimientos</h3>
                     <button onClick={onClose} className="text-text-muted hover:text-white">
                         <span className="material-symbols-outlined">close</span>
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto space-y-6 pr-2 custom-scrollbar">
                     {sortedKeys.length === 0 ? (
-                        <p className="text-text-muted text-center py-8">No hay registros de gastos.</p>
+                        <p className="text-text-muted text-center py-8">No hay registros de movimientos.</p>
                     ) : (
-                        sortedKeys.map(key => (
-                            <div key={key} className="flex items-center justify-between p-4 rounded-xl bg-surface-highlight/50 border border-white/5">
-                                <div>
-                                    <p className="text-white font-bold capitalize">{getMonthName(key)}</p>
-                                    <p className="text-xs text-text-muted">{key}</p>
+                        sortedKeys.map(key => {
+                            const monthTransactions = groupedTransactions[key].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                            const totalExpense = monthTransactions
+                                .filter(t => t.type === 'expense')
+                                .reduce((sum, t) => sum + t.amount, 0);
+
+                            return (
+                                <div key={key} className="space-y-3">
+                                    <div className="flex items-center justify-between sticky top-0 bg-[#18181b] z-10 py-2 border-b border-white/10">
+                                        <h4 className="text-white font-bold capitalize text-lg">{getMonthName(key)}</h4>
+                                        <span className="text-xs font-bold bg-primary/20 text-primary px-2 py-1 rounded-lg">
+                                            Gasto: {formatCurrency(totalExpense)}
+                                        </span>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        {monthTransactions.map(t => (
+                                            <div key={t.id} className="flex items-center justify-between p-3 rounded-xl bg-surface-highlight/30 border border-white/5">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${t.type === 'expense' ? 'bg-primary/20 text-primary' : 'bg-warning/20 text-warning'}`}>
+                                                        <span className="material-symbols-outlined text-sm">
+                                                            {t.type === 'expense' ? 'shopping_cart' : 'remove_shopping_cart'}
+                                                        </span>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-medium text-white">{t.productName}</p>
+                                                        <p className="text-[10px] text-text-muted">
+                                                            {new Date(t.date).toLocaleDateString()} • {t.type === 'expense' ? 'Agregado' : 'Consumido'}: {t.quantity}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className={`text-sm font-bold ${t.type === 'expense' ? 'text-white' : 'text-text-muted'}`}>
+                                                        {t.type === 'expense' ? formatCurrency(t.amount) : '-'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                                <p className="text-primary font-bold text-lg">{formatCurrency(expenses[key])}</p>
-                            </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
             </div>
@@ -179,7 +222,7 @@ const ExpensesModal: React.FC<{
 };
 
 export const Inventory: React.FC<InventoryProps> = ({
-    products, categories, onDeleteProduct, onAddCategory, onUpdateCategory, onDeleteCategory, userRole, onUpdateProduct, expenses
+    products, categories, onDeleteProduct, onAddCategory, onUpdateCategory, onDeleteCategory, userRole, onUpdateProduct, expenses, transactions
 }) => {
     const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState('');
@@ -415,7 +458,7 @@ export const Inventory: React.FC<InventoryProps> = ({
             <ExpensesModal
                 isOpen={isExpensesModalOpen}
                 onClose={() => setIsExpensesModalOpen(false)}
-                expenses={expenses}
+                transactions={transactions}
             />
         </Layout>
     );

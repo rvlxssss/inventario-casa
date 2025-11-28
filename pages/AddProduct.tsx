@@ -162,7 +162,6 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
     // Price Calculator State
     const [useUnitPrice, setUseUnitPrice] = useState(false);
     const [pricePerPackage, setPricePerPackage] = useState('');
-    const [packageSize, setPackageSize] = useState('1');
     const [totalCost, setTotalCost] = useState('');
 
     const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -460,18 +459,17 @@ export const AddProduct: React.FC<AddProductProps> = ({ categories, onAdd, onUpd
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-xs text-text-muted block mb-1 ml-1">Tamaño ({unit})</label>
+                                    <label className="text-xs text-text-muted block mb-1 ml-1">Cantidad</label>
                                     <input
                                         type="number"
-                                        value={packageSize}
-                                        onChange={(e) => setPackageSize(e.target.value)}
-                                        className="w-full rounded-xl border border-white/10 bg-surface-highlight/30 p-3 text-sm text-white outline-none focus:ring-2 focus:ring-primary/50"
-                                        placeholder="1"
+                                        value={quantity}
+                                        readOnly
+                                        className="w-full rounded-xl border border-white/10 bg-surface-highlight/10 p-3 text-sm text-text-muted outline-none cursor-not-allowed"
                                     />
                                 </div>
                                 <div className="col-span-2">
                                     <p className="text-[10px] text-text-muted leading-relaxed">
-                                        Ej: Si compraste 2 Litros (Cantidad Total), y cada botella es de 1 Litro (Tamaño) y cuesta $1.50 (Precio Unitario), el costo total será $3.00.
+                                        Ej: Si compraste 6 Unidades (Cantidad), y cada una cuesta $1000 (Precio Unitario), el costo total será $6000.
                                     </p>
                                 </div>
                             </div>
