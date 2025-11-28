@@ -109,6 +109,21 @@ io.on('connection', (socket) => {
       if (session) {
         socket.join(session.roomId);
 
+        // Add user to members if not present
+        let members = session.members || [];
+        if (user && !members.find(m => m.id === user.id)) {
+          const newUser = { ...user, role: 'editor' };
+          members.push(newUser);
+          session.members = members;
+          await session.save();
+
+          // Broadcast new member list to others
+          socket.to(session.roomId).emit('sync_action', {
+            type: 'UPDATE_MEMBERS',
+            payload: members
+          });
+        }
+
         // ACK to the user that they joined successfully
         socket.emit('session_joined', { code: formattedCode });
 
